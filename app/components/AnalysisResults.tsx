@@ -8,12 +8,23 @@ interface Props {
 }
 
 const TEST_LABELS: Record<string, string> = {
+  // Parametric
   descriptive_statistics: 'Descriptive Statistics',
   independent_t_test: 'Independent Samples t-test',
   paired_t_test: 'Paired t-test',
   one_way_anova: 'One-Way ANOVA',
   chi_square: 'Chi-Square Test',
   pearson_correlation: 'Pearson Correlation',
+  // Non-parametric
+  mann_whitney: 'Mann-Whitney U Test',
+  wilcoxon_signed_rank: 'Wilcoxon Signed-Rank Test',
+  kruskal_wallis: 'Kruskal-Wallis Test',
+  spearman_correlation: 'Spearman Rank Correlation',
+  fishers_exact: "Fisher's Exact Test",
+  mcnemar: "McNemar's Test",
+  // Regression
+  logistic_regression: 'Logistic Regression',
+  linear_regression: 'Multiple Linear Regression',
 }
 
 export default function AnalysisResults({ result }: Props) {
