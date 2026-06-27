@@ -17,6 +17,7 @@ export default function LandingPage() {
             <a href="#features" style={{ color: '#555', textDecoration: 'none', fontSize: '14px' }}>Features</a>
             <a href="#workflow" style={{ color: '#555', textDecoration: 'none', fontSize: '14px' }}>How it works</a>
             <a href="#trust" style={{ color: '#555', textDecoration: 'none', fontSize: '14px' }}>Why trust it</a>
+            <a href="#pricing" style={{ color: '#555', textDecoration: 'none', fontSize: '14px' }}>Pricing</a>
             <a href="https://r-research-assistant-vx33.vercel.app" target="_blank" rel="noreferrer" style={{ background: '#1a3a5c', color: '#fff', padding: '8px 20px', borderRadius: '8px', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>Try for free</a>
           </div>
         </div>
@@ -171,6 +172,119 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section style={{ padding: '80px 2rem', background: '#f0f4f8' }} id="pricing">
+        <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ display: 'inline-block', background: '#dbeafe', color: '#1e40af', fontSize: '13px', fontWeight: 600, padding: '4px 14px', borderRadius: '20px', marginBottom: '16px' }}>
+            Pricing
+          </div>
+          <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#1a3a5c', marginBottom: '16px' }}>Simple, transparent pricing</h2>
+          <p style={{ fontSize: '18px', color: '#555', lineHeight: 1.6, marginBottom: '60px' }}>Start free. Upgrade when you need more analyses, more tests, or team access.</p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', textAlign: 'left' }}>
+
+            {/* FREE */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '32px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Free</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '42px', fontWeight: 800, color: '#1a3a5c' }}>₱0</span>
+                  <span style={{ color: '#888', fontSize: '14px' }}>/month</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#555' }}>Try JOANResearchOS at no cost</div>
+              </div>
+              <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '24px', marginBottom: '32px', flex: 1 }}>
+                {['5 analyses per month','6 basic statistical tests','PDF report download','Excel file upload','AI interpretation','R script download'].map((f) => (
+                  <div key={f} style={{ display: 'flex', gap: '10px', marginBottom: '12px', fontSize: '14px', color: '#444' }}>
+                    <span style={{ color: '#2e75b6', fontWeight: 700, flexShrink: 0 }}>✓</span>{f}
+                  </div>
+                ))}
+                {['Non-parametric tests','Regression analysis','Team access'].map((f) => (
+                  <div key={f} style={{ display: 'flex', gap: '10px', marginBottom: '12px', fontSize: '14px', color: '#bbb' }}>
+                    <span style={{ color: '#ddd', fontWeight: 700, flexShrink: 0 }}>✗</span>{f}
+                  </div>
+                ))}
+              </div>
+              <a href="https://r-research-assistant-vx33.vercel.app" target="_blank" rel="noreferrer"
+                style={{ display: 'block', textAlign: 'center', background: '#f0f4f8', color: '#1a3a5c', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700, border: '2px solid #1a3a5c' }}>
+                Get started free
+              </a>
+            </div>
+
+            {/* PRO */}
+            <div style={{ background: '#1a3a5c', border: '2px solid #2e75b6', borderRadius: '16px', padding: '32px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)', background: '#2e75b6', color: '#fff', fontSize: '12px', fontWeight: 700, padding: '4px 16px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
+                MOST POPULAR
+              </div>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#94b8d4', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Pro</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '42px', fontWeight: 800, color: '#fff' }}>₱999</span>
+                  <span style={{ color: '#94b8d4', fontSize: '14px' }}>/month</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#94b8d4' }}>For individual researchers and clinicians</div>
+              </div>
+              <div style={{ borderTop: '1px solid #2e4a6a', paddingTop: '24px', marginBottom: '32px', flex: 1 }}>
+                {['Unlimited analyses','All 14 statistical tests','PDF report download','Excel file upload','AI interpretation','R script download','Non-parametric tests','Regression analysis','Priority email support'].map((f) => (
+                  <div key={f} style={{ display: 'flex', gap: '10px', marginBottom: '12px', fontSize: '14px', color: '#e2eaf2' }}>
+                    <span style={{ color: '#60a5fa', fontWeight: 700, flexShrink: 0 }}>✓</span>{f}
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', fontSize: '14px', color: '#4a6a85' }}>
+                  <span style={{ color: '#4a6a85', fontWeight: 700, flexShrink: 0 }}>✗</span>Team access
+                </div>
+              </div>
+              <a href="mailto:joanresearchos@gmail.com?subject=Pro Plan Inquiry"
+                style={{ display: 'block', textAlign: 'center', background: '#fff', color: '#1a3a5c', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700 }}>
+                Get Pro — ₱999/mo
+              </a>
+            </div>
+
+            {/* INSTITUTION */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '32px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Institution</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '42px', fontWeight: 800, color: '#1a3a5c' }}>₱4,999</span>
+                  <span style={{ color: '#888', fontSize: '14px' }}>/month</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#555' }}>For hospitals, universities, and health agencies</div>
+              </div>
+              <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '24px', marginBottom: '32px', flex: 1 }}>
+                {['Unlimited analyses','All 14 statistical tests','PDF report download','Excel file upload','AI interpretation','R script download','Non-parametric tests','Regression analysis','Up to 20 team members','Admin dashboard','Dedicated support','Custom institution branding','DOH / ethics board ready reports'].map((f) => (
+                  <div key={f} style={{ display: 'flex', gap: '10px', marginBottom: '12px', fontSize: '14px', color: '#444' }}>
+                    <span style={{ color: '#2e75b6', fontWeight: 700, flexShrink: 0 }}>✓</span>{f}
+                  </div>
+                ))}
+              </div>
+              <a href="mailto:joanresearchos@gmail.com?subject=Institution Plan Inquiry"
+                style={{ display: 'block', textAlign: 'center', background: '#1a3a5c', color: '#fff', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700 }}>
+                Contact us
+              </a>
+            </div>
+
+          </div>
+
+          {/* FAQ */}
+          <div style={{ marginTop: '60px', textAlign: 'left', maxWidth: '700px', margin: '60px auto 0' }}>
+            <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#1a3a5c', marginBottom: '24px', textAlign: 'center' }}>Frequently asked questions</h3>
+            {[
+              { q: 'Is the free plan really free?', a: 'Yes. No credit card required. You get 5 analyses per month with the 6 basic statistical tests — enough to try the platform and run small studies.' },
+              { q: 'Can I trust the statistical results for publication?', a: 'Yes. All calculations are performed by R, the same statistical engine used by WHO, CDC, and academic journals worldwide. AI only generates code and interprets output — it never computes statistical values.' },
+              { q: 'What file formats are supported?', a: 'Currently .xlsx and .xls Excel files. The system handles merged cells, title rows, and messy headers automatically.' },
+              { q: 'How do I pay for Pro or Institution?', a: 'Contact us via the button above and we will send you a GCash or bank transfer payment link. Access is activated within 24 hours of payment.' },
+              { q: 'Can I upgrade or downgrade anytime?', a: 'Yes. Contact us and we will adjust your plan at the start of the next billing month.' },
+            ].map((faq, i) => (
+              <div key={i} style={{ borderBottom: '1px solid #e2e8f0', padding: '20px 0' }}>
+                <div style={{ fontWeight: 700, color: '#1a3a5c', marginBottom: '8px', fontSize: '15px' }}>{faq.q}</div>
+                <div style={{ color: '#555', fontSize: '14px', lineHeight: 1.6 }}>{faq.a}</div>
+              </div>
+            ))}
+          </div>
+
         </div>
       </section>
 
