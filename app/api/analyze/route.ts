@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAnalysisPlan, generateRScript } from '@/app/lib/aiService'
 import { checkUsageLimit } from '@/app/lib/usageTracker'
+import { createServerClient } from '@supabase/ssr'
+import type { CookieOptions } from '@supabase/ssr'
 import type { AnalyzeRequest, AnalyzeResponse } from '@/app/types'
 
 export const runtime = 'nodejs'
@@ -14,12 +16,35 @@ function getClientIP(request: NextRequest): string {
   return '127.0.0.1'
 }
 
+async function getUserId(request: NextRequest): Promise<string | null> {
+  try {
+    const response = NextResponse.next()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll() },
+          setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+            cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+          },
+        },
+      }
+    )
+    const { data: { user } } = await supabase.auth.getUser()
+    return user?.id ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeResponse>> {
   try {
     const ip = getClientIP(request)
+    const userId = await getUserId(request)
 
-    // Check usage limit
-    const usage = await checkUsageLimit(ip)
+    // Check usage limit by user_id (or IP as fallback)
+    const usage = await checkUsageLimit(userId, ip)
     if (!usage.allowed) {
       return NextResponse.json({
         success: false,
