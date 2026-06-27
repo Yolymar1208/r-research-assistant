@@ -2,14 +2,17 @@ import { supabaseAdmin } from '@/app/lib/supabase-server'
 
 const FREE_LIMIT = 5
 
-// Get current month-year key e.g. "2026-06"
 function getMonthYear(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-// Check if user is allowed to run an analysis
-export async function checkUsageLimit(ipAddress: string): Promise<{
+// Use user_id as primary identifier, fall back to IP for unauthenticated
+function getTrackingKey(userId: string | null, ipAddress: string): { user_id: string | null; ip_address: string } {
+  return { user_id: userId, ip_address: ipAddress }
+}
+
+export async function checkUsageLimit(userId: string | null, ipAddress: string): Promise<{
   allowed: boolean
   currentCount: number
   limit: number
@@ -17,18 +20,24 @@ export async function checkUsageLimit(ipAddress: string): Promise<{
   remaining: number
 }> {
   const monthYear = getMonthYear()
+  const key = getTrackingKey(userId, ipAddress)
 
-  const { data, error } = await supabaseAdmin
+  // Query by user_id if available, otherwise by IP
+  let query = supabaseAdmin
     .from('usage_tracking')
     .select('analyses_count, plan')
-    .eq('ip_address', ipAddress)
     .eq('month_year', monthYear)
-    .single()
+
+  if (key.user_id) {
+    query = query.eq('user_id', key.user_id)
+  } else {
+    query = query.eq('ip_address', key.ip_address).is('user_id', null)
+  }
+
+  const { data, error } = await query.single()
 
   if (error && error.code !== 'PGRST116') {
-    // PGRST116 = row not found (first time user)
     console.error('[Usage] Error checking limit:', error)
-    // Fail open — allow the analysis if DB check fails
     return { allowed: true, currentCount: 0, limit: FREE_LIMIT, plan: 'free', remaining: FREE_LIMIT }
   }
 
@@ -41,16 +50,22 @@ export async function checkUsageLimit(ipAddress: string): Promise<{
   return { allowed, currentCount, limit: plan === 'free' ? FREE_LIMIT : 999, plan, remaining }
 }
 
-// Increment usage count after a successful analysis
-export async function incrementUsage(ipAddress: string): Promise<void> {
+export async function incrementUsage(userId: string | null, ipAddress: string): Promise<void> {
   const monthYear = getMonthYear()
+  const key = getTrackingKey(userId, ipAddress)
 
-  const { data: existing } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('usage_tracking')
     .select('id, analyses_count')
-    .eq('ip_address', ipAddress)
     .eq('month_year', monthYear)
-    .single()
+
+  if (key.user_id) {
+    query = query.eq('user_id', key.user_id)
+  } else {
+    query = query.eq('ip_address', key.ip_address).is('user_id', null)
+  }
+
+  const { data: existing } = await query.single()
 
   if (existing) {
     await supabaseAdmin
@@ -64,7 +79,8 @@ export async function incrementUsage(ipAddress: string): Promise<void> {
     await supabaseAdmin
       .from('usage_tracking')
       .insert({
-        ip_address: ipAddress,
+        user_id: key.user_id,
+        ip_address: key.ip_address,
         month_year: monthYear,
         analyses_count: 1,
         plan: 'free',
@@ -72,8 +88,8 @@ export async function incrementUsage(ipAddress: string): Promise<void> {
   }
 }
 
-// Save analysis to history
 export async function saveAnalysisHistory(
+  userId: string | null,
   ipAddress: string,
   data: {
     datasetName: string
@@ -86,6 +102,7 @@ export async function saveAnalysisHistory(
   }
 ): Promise<void> {
   await supabaseAdmin.from('analysis_history').insert({
+    user_id: userId,
     ip_address: ipAddress,
     dataset_name: data.datasetName,
     research_question: data.researchQuestion,
@@ -97,8 +114,7 @@ export async function saveAnalysisHistory(
   })
 }
 
-// Get usage status for display on frontend
-export async function getUsageStatus(ipAddress: string): Promise<{
+export async function getUsageStatus(userId: string | null, ipAddress: string): Promise<{
   currentCount: number
   limit: number
   plan: string
@@ -107,12 +123,18 @@ export async function getUsageStatus(ipAddress: string): Promise<{
 }> {
   const monthYear = getMonthYear()
 
-  const { data } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('usage_tracking')
     .select('analyses_count, plan')
-    .eq('ip_address', ipAddress)
     .eq('month_year', monthYear)
-    .single()
+
+  if (userId) {
+    query = query.eq('user_id', userId)
+  } else {
+    query = query.eq('ip_address', ipAddress).is('user_id', null)
+  }
+
+  const { data } = await query.single()
 
   const currentCount = data?.analyses_count ?? 0
   const plan = data?.plan ?? 'free'
