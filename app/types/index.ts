@@ -2,7 +2,7 @@
 
 export interface ColumnInfo {
   name: string
-  cleanName: string       // snake_case version safe for R
+  cleanName: string
   detectedType: 'numeric' | 'integer' | 'character' | 'logical' | 'date' | 'unknown'
   missingCount: number
   missingPercent: number
@@ -15,20 +15,31 @@ export interface DatasetSummary {
   rowCount: number
   columnCount: number
   columns: ColumnInfo[]
-  preview: Record<string, unknown>[]   // first 5 rows
+  preview: Record<string, unknown>[]
   uploadedAt: string
-  tempFilePath: string                 // server-side path to uploaded file
+  tempFilePath: string
 }
 
 // ─── Analysis Types ───────────────────────────────────────────────────────────
 
 export type SupportedTest =
+  // Parametric
   | 'descriptive_statistics'
   | 'independent_t_test'
   | 'paired_t_test'
   | 'one_way_anova'
   | 'chi_square'
   | 'pearson_correlation'
+  // Non-parametric
+  | 'mann_whitney'
+  | 'wilcoxon_signed_rank'
+  | 'kruskal_wallis'
+  | 'spearman_correlation'
+  | 'fishers_exact'
+  | 'mcnemar'
+  // Regression
+  | 'logistic_regression'
+  | 'linear_regression'
 
 export interface AnalysisPlan {
   researchQuestion: string
@@ -39,7 +50,7 @@ export interface AnalysisPlan {
   selectedTest: SupportedTest
   testRationale: string
   assumptions: string[]
-  followUpQuestions: string[]         // if AI needs clarification
+  followUpQuestions: string[]
   planSummary: string
 }
 
