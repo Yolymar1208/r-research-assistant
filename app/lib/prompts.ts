@@ -64,7 +64,7 @@ RESPOND WITH EXACTLY THIS STRUCTURE:
   "dependentVariable": "exact R column name (cleanName) or null",
   "independentVariable": "exact R column name (cleanName) or null",
   "additionalVariables": [],
-  "selectedTest": "one of the six test keys above",
+  "selectedTest": "one of the fourteen test keys above",
   "testRationale": "one sentence explaining why this test was chosen",
   "assumptions": ["assumption 1", "assumption 2", "assumption 3"],
   "followUpQuestions": [],
@@ -274,6 +274,24 @@ FIX: Extract a meaningful time unit before analysis:
   - Week: data$week <- lubridate::week(as.Date(data$${iv}))
   - Month: data$month <- lubridate::month(as.Date(data$${iv}), label=TRUE)
   - Use the new column as the grouping variable instead`
+    )
+  }
+
+  // ── Problem 15a: Logistic regression needs binary outcome ───────────────────
+  if (test === 'logistic_regression' && dvCol) {
+    if (dvCol.uniqueCount > 2) {
+      problems.push(
+        `PROBLEM: Logistic regression requires a binary (2-category) outcome, but "${dv}" has ${dvCol.uniqueCount} unique values.
+FIX: Either recode "${dv}" into two categories (e.g., Yes/No, 1/0), or use linear_regression for continuous outcomes or one_way_anova for categorical outcomes with 3+ groups.`
+      )
+    }
+  }
+
+  // ── Problem 15b: Linear regression outcome must be numeric ───────────────────
+  if (test === 'linear_regression' && dvCol && dvCol.detectedType === 'character') {
+    problems.push(
+      `PROBLEM: Linear regression requires a numeric dependent variable, but "${dv}" is character type.
+FIX: Convert to numeric with as.numeric(data$${dv}), or use logistic_regression if the outcome is binary.`
     )
   }
 
@@ -583,3 +601,8 @@ Sample size considerations, potential confounders, recommended follow-up analyse
 
 Do not invent any numbers. Only cite values visible in the R output above.`
 }
+
+// ─── PATCH: Replace test list and instructions with expanded version ───────────
+// This file extension adds new tests — the main file above handles the existing 6.
+// The buildAnalysisPlannerPrompt and getTestInstructions functions below
+// are patched via module augmentation in the build.
