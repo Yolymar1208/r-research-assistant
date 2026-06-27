@@ -49,6 +49,27 @@ export default function AnalysisResults({ result }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  async function downloadPDFReport() {
+    try {
+      const res = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, datasetName: 'Dataset' }),
+      })
+      const html = await res.text()
+      // Open in new window and trigger print dialog (save as PDF)
+      const win = window.open('', '_blank')
+      if (win) {
+        win.document.write(html)
+        win.document.close()
+        win.focus()
+        setTimeout(() => win.print(), 800)
+      }
+    } catch (err) {
+      console.error('Report generation failed:', err)
+    }
+  }
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Status bar */}
@@ -65,12 +86,20 @@ export default function AnalysisResults({ result }: Props) {
             {TEST_LABELS[result.plan.selectedTest]} · {result.execution.executionTimeMs}ms
           </span>
         </div>
-        <button
-          onClick={downloadRScript}
-          className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium"
-        >
-          ↓ Download analysis.R
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={downloadRScript}
+            className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium"
+          >
+            ↓ analysis.R
+          </button>
+          <button
+            onClick={downloadPDFReport}
+            className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium"
+          >
+            ↓ PDF Report
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
