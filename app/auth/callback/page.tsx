@@ -1,33 +1,22 @@
 'use client'
 
 import { useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createClient } from '@/app/lib/supabase'
 
 export default function AuthCallback() {
   useEffect(() => {
-    const handleCallback = async () => {
-      const { data, error } = await supabase.auth.getSession()
-      if (data.session) {
-        window.location.replace('/')
-      } else {
-        // Try exchanging the code from URL
-        const params = new URLSearchParams(window.location.search)
-        const hash = window.location.hash
-        if (hash || params.get('code')) {
-          setTimeout(() => {
-            window.location.replace('/')
-          }, 2000)
+    const supabase = createClient()
+
+    // Exchange the code in URL for a session
+    supabase.auth.exchangeCodeForSession(window.location.href)
+      .then(({ error }) => {
+        if (error) {
+          console.error('Auth callback error:', error)
+          window.location.replace('/login?error=auth_failed')
         } else {
-          window.location.replace('/login')
+          window.location.replace('/')
         }
-      }
-    }
-    handleCallback()
+      })
   }, [])
 
   return (
