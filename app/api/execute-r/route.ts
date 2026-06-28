@@ -44,6 +44,7 @@ interface ExecuteRequest {
   plan: AnalysisPlan
   excelFilePath?: string
   datasetName?: string
+  storagePath?: string
 }
 
 interface ExecuteResponse {
@@ -62,6 +63,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
 
     if (!rScript?.trim()) {
       return NextResponse.json({ success: false, error: 'R script is required.' }, { status: 400 })
+    }
+
+    // Restore Excel file from storage if temp file is missing
+    if (excelFilePath && !require('fs').existsSync(excelFilePath)) {
+      const { storagePath } = body as { storagePath?: string } & typeof body
+      if (storagePath) {
+        const { downloadDatasetFromStorage } = await import('@/app/lib/fileStorage')
+        const { success, error } = await downloadDatasetFromStorage(storagePath, excelFilePath)
+        if (!success) {
+          console.warn('[Execute-R] Could not restore file from storage:', error)
+        } else {
+          console.log('[Execute-R] File restored from Supabase Storage')
+        }
+      }
     }
 
     if (process.env.R_API_URL) {
