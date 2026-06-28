@@ -25,6 +25,12 @@ const TEST_LABELS: Record<string, string> = {
   // Regression
   logistic_regression: 'Logistic Regression',
   linear_regression: 'Multiple Linear Regression',
+  // Epidemiology
+  epidemic_curve: 'Epidemic Curve',
+  attack_rate_table: 'Attack Rate Table',
+  age_sex_pyramid: 'Age-Sex Pyramid',
+  survival_analysis: 'Survival Analysis',
+  moving_average: 'Moving Average (7-day)',
 }
 
 export default function AnalysisResults({ result }: Props) {
