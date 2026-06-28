@@ -102,6 +102,7 @@ export default function Home() {
           rScript, plan,
           excelFilePath: datasetSummary?.tempFilePath || '',
           datasetName: datasetSummary?.fileName || 'Unknown',
+          storagePath: (datasetSummary as typeof datasetSummary & { storagePath?: string })?.storagePath || null,
         }),
       })
       const data = await res.json()
