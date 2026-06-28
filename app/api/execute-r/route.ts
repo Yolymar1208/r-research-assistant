@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeRScript, wakeRApi } from '@/app/lib/rExecutor'
 import { interpretROutput } from '@/app/lib/aiService'
 import { incrementUsage, saveAnalysisHistory } from '@/app/lib/usageTracker'
+import { getSignedUrl } from '@/app/lib/fileStorage'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import type { AnalysisPlan, RExecutionResult } from '@/app/types'
@@ -34,9 +35,7 @@ async function getUserId(request: NextRequest): Promise<string | null> {
     )
     const { data: { user } } = await supabase.auth.getUser()
     return user?.id ?? null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 interface ExecuteRequest {
@@ -59,23 +58,27 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     const ip = getClientIP(request)
     const userId = await getUserId(request)
     const body: ExecuteRequest = await request.json()
-    const { rScript, plan, excelFilePath, datasetName } = body
+    const { rScript, plan, excelFilePath, datasetName, storagePath } = body
 
     if (!rScript?.trim()) {
       return NextResponse.json({ success: false, error: 'R script is required.' }, { status: 400 })
     }
 
-    // Restore Excel file from storage if temp file is missing
-    if (excelFilePath && !require('fs').existsSync(excelFilePath)) {
-      const { storagePath } = body as { storagePath?: string } & typeof body
-      if (storagePath) {
-        const { downloadDatasetFromStorage } = await import('@/app/lib/fileStorage')
-        const { success, error } = await downloadDatasetFromStorage(storagePath, excelFilePath)
-        if (!success) {
-          console.warn('[Execute-R] Could not restore file from storage:', error)
-        } else {
-          console.log('[Execute-R] File restored from Supabase Storage')
-        }
+    // If we have a storagePath, get a signed URL and rewrite the R script
+    // so R downloads the file directly from Supabase Storage
+    let finalScript = rScript
+    if (storagePath && excelFilePath) {
+      const signedUrl = await getSignedUrl(storagePath)
+      if (signedUrl) {
+        // Replace the file_path line with a download command
+        const ext = excelFilePath.split('.').pop() || 'xlsx'
+        const tempPath = `/tmp/dataset_${Date.now()}.${ext}`
+        const downloadCode = `# Download dataset from secure storage\ntemp_file <- "${tempPath}"\ndownload.file("${signedUrl}", temp_file, mode="wb", quiet=TRUE)\nfile_path <- temp_file\n`
+        finalScript = rScript.replace(
+          /file_path\s*<-\s*["'][^"']+["']/,
+          downloadCode + `file_path <- temp_file`
+        )
+        console.log('[Execute-R] Using signed URL for file download on Render')
       }
     }
 
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     }
 
     console.log('[Execute-R API] Running R script...')
-    const execution = await executeRScript(rScript, excelFilePath || '')
+    const execution = await executeRScript(finalScript, excelFilePath || '')
 
     if (!execution.success) {
       return NextResponse.json({ success: false, execution, error: execution.errorMessage || 'R execution failed.' })
@@ -94,10 +97,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     console.log('[Execute-R API] Interpreting R output...')
     const interpretation = await interpretROutput(plan, rScript, execution.rawOutput)
 
-    // Increment usage by user_id
     incrementUsage(userId, ip).catch(console.error)
 
-    // Save to history with user_id
     saveAnalysisHistory(userId, ip, {
       datasetName: datasetName || 'Unknown',
       researchQuestion: plan.researchQuestion,
