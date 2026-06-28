@@ -64,22 +64,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       return NextResponse.json({ success: false, error: 'R script is required.' }, { status: 400 })
     }
 
-    // If we have a storagePath, get a signed URL and rewrite the R script
-    // so R downloads the file directly from Supabase Storage
+    // Build final script — replace file path with download from Supabase Storage
     let finalScript = rScript
-    if (storagePath && excelFilePath) {
+    if (storagePath) {
       const signedUrl = await getSignedUrl(storagePath)
       if (signedUrl) {
-        // Replace the file_path line with a download command
-        const ext = excelFilePath.split('.').pop() || 'xlsx'
+        const ext = (excelFilePath || 'file.xlsx').split('.').pop() || 'xlsx'
         const tempPath = `/tmp/dataset_${Date.now()}.${ext}`
-        const downloadCode = `# Download dataset from secure storage\ntemp_file <- "${tempPath}"\ndownload.file("${signedUrl}", temp_file, mode="wb", quiet=TRUE)\nfile_path <- temp_file\n`
-        finalScript = rScript.replace(
-          /file_path\s*<-\s*["'][^"']+["']/,
-          downloadCode + `file_path <- temp_file`
-        )
-        console.log('[Execute-R] Using signed URL for file download on Render')
+        // Prepend download code before the rest of the script
+        const downloadCode = [
+          '# Download dataset from Supabase Storage',
+          `temp_file <- "${tempPath}"`,
+          `download.file("${signedUrl}", temp_file, mode="wb", quiet=TRUE)`,
+          `file_path <- temp_file`,
+          '',
+        ].join('\n')
+        // Remove the original file_path line and prepend download code
+        finalScript = downloadCode + rScript.replace(/^file_path\s*<-\s*["'][^"']+["']\s*$/m, '')
+        console.log('[Execute-R] Injected download.file() for Supabase Storage')
+      } else {
+        console.warn('[Execute-R] Could not get signed URL for storagePath:', storagePath)
       }
+    } else {
+      console.warn('[Execute-R] No storagePath provided — file may be missing on Render')
     }
 
     if (process.env.R_API_URL) {
