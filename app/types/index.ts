@@ -40,6 +40,12 @@ export type SupportedTest =
   // Regression
   | 'logistic_regression'
   | 'linear_regression'
+  // Epidemiology-specific
+  | 'epidemic_curve'
+  | 'attack_rate_table'
+  | 'age_sex_pyramid'
+  | 'survival_analysis'
+  | 'moving_average'
 
 export interface AnalysisPlan {
   researchQuestion: string
