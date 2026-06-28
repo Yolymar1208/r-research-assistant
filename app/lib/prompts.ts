@@ -55,6 +55,13 @@ REGRESSION:
 - logistic_regression        → predict binary outcome (Yes/No) from predictors
 - linear_regression          → predict continuous outcome from multiple predictors
 
+EPIDEMIOLOGY-SPECIFIC (use for outbreak/surveillance data):
+- epidemic_curve             → bar chart of case counts by date of onset — use when data has a date column and research question involves trend over time or outbreak timeline
+- attack_rate_table          → 2x2 table with attack rates, risk ratios, odds ratios — use when comparing attack rates between exposed vs unexposed groups
+- age_sex_pyramid            → population pyramid by age group and sex — use when data has age and sex columns and question involves demographic distribution
+- survival_analysis          → time-to-event analysis (case fatality, time to recovery) — use when data has date of onset and date of outcome/death
+- moving_average             → rolling average of case counts over time — use for smoothing surveillance trend data
+
 SELECTION RULES:
 - If n < 30 or non-normal → prefer non-parametric
 - If outcome is binary (Yes/No, 0/1) → logistic_regression
@@ -68,7 +75,7 @@ RESPOND WITH EXACTLY THIS JSON (10 keys, no extras):
   "dependentVariable": "exact R column name or null",
   "independentVariable": "exact R column name or null",
   "additionalVariables": [],
-  "selectedTest": "one of the fourteen test keys above",
+  "selectedTest": "one of the nineteen test keys above",
   "testRationale": "one sentence",
   "assumptions": ["assumption 1", "assumption 2"],
   "followUpQuestions": [],
@@ -241,6 +248,219 @@ Step 4: print(confint(model))
 Step 5: cat("R-squared:", round(summary(model)$r.squared,3), "| Adj R-squared:", round(summary(model)$adj.r.squared,3), "\\n")
 Step 6: if(length(predictors)>1) { cat("VIF:\\n"); print(car::vif(model)) }`,
   }
+
+    epidemic_curve: `
+EPIDEMIC CURVE — standard outbreak epi curve:
+Step 1 — Identify and parse the date column:
+  clean <- data[!is.na(data$${dv}), ]
+  clean$onset_date <- as.Date(clean$${dv})
+  cat("Date range:", format(min(clean$onset_date)), "to", format(max(clean$onset_date)), "\n")
+  cat("Total cases:", nrow(clean), "\n")
+
+Step 2 — Determine appropriate time interval (auto-select):
+  date_range <- as.numeric(max(clean$onset_date) - min(clean$onset_date))
+  interval <- if(date_range <= 14) "day" else if(date_range <= 90) "week" else "month"
+  cat("Time interval selected:", interval, "\n")
+
+Step 3 — Count cases by time interval:
+  if(interval == "day") {
+    clean$period <- clean$onset_date
+  } else if(interval == "week") {
+    clean$period <- floor_date(clean$onset_date, "week")
+  } else {
+    clean$period <- floor_date(clean$onset_date, "month")
+  }
+  case_counts <- clean %>% count(period) %>% arrange(period)
+  cat("\n=== CASE COUNTS BY PERIOD ===\n")
+  print(case_counts)
+
+Step 4 — Summary statistics:
+  cat("\n=== EPIDEMIC CURVE SUMMARY ===\n")
+  cat("Peak period:", format(case_counts$period[which.max(case_counts$n)]), "\n")
+  cat("Peak case count:", max(case_counts$n), "\n")
+  cat("Total periods:", nrow(case_counts), "\n")
+  cat("Mean cases per period:", round(mean(case_counts$n), 1), "\n")
+
+Step 5 — If stratification variable available (${iv}), cross-tabulate:
+  if("${iv}" != "N/A" && "${iv}" %in% names(clean)) {
+    cat("\n=== CASES BY PERIOD AND ${iv} ===\n")
+    strat_counts <- clean %>% count(period, ${iv}) %>% arrange(period)
+    print(strat_counts)
+  }
+
+Step 6 — Save plot to file (required for non-interactive R):
+  suppressPackageStartupMessages(library(ggplot2))
+  suppressPackageStartupMessages(library(lubridate))
+  p <- ggplot(case_counts, aes(x=period, y=n)) +
+    geom_col(fill="#2e75b6", color="white", width=0.8) +
+    labs(title="Epidemic Curve", x=paste("Date of onset (by", interval, ")"), y="Number of cases") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+  ggsave("/tmp/epicurve.png", p, width=10, height=6, dpi=150)
+  cat("\nEpicurve saved to /tmp/epicurve.png\n")`,
+
+    attack_rate_table: `
+ATTACK RATE TABLE — standard outbreak 2x2 analysis:
+Step 1 — Identify exposure and outcome variables:
+  cat("Exposure variable: ${iv}\n")
+  cat("Outcome variable: ${dv}\n")
+  clean <- data[!is.na(data$${iv}) & !is.na(data$${dv}), ]
+  cat("Total cases for analysis:", nrow(clean), "\n")
+
+Step 2 — Print exposure and outcome categories:
+  cat("\nExposure categories:\n"); print(table(clean$${iv}))
+  cat("\nOutcome categories:\n"); print(table(clean$${dv}))
+
+Step 3 — Build 2x2 contingency table:
+  tbl <- table(Exposure=clean$${iv}, Outcome=clean$${dv})
+  cat("\n=== 2x2 CONTINGENCY TABLE ===\n")
+  print(addmargins(tbl))
+
+Step 4 — Calculate attack rates per group:
+  cat("\n=== ATTACK RATES ===\n")
+  for(grp in rownames(tbl)) {
+    total <- sum(tbl[grp,])
+    cases <- tbl[grp, ncol(tbl)]
+    ar <- cases/total*100
+    cat(sprintf("Group: %-20s | Cases: %3d | Total: %3d | Attack Rate: %.1f%%\n", grp, cases, total, ar))
+  }
+
+Step 5 — Risk ratio and odds ratio:
+  cat("\n=== MEASURES OF ASSOCIATION ===\n")
+  chisq_result <- chisq.test(tbl)
+  print(chisq_result)
+  
+  if(all(dim(tbl) == c(2,2))) {
+    a <- tbl[1,1]; b <- tbl[1,2]; c <- tbl[2,1]; d <- tbl[2,2]
+    rr <- (a/(a+b)) / (c/(c+d))
+    or <- (a*d)/(b*c)
+    rr_lower <- exp(log(rr) - 1.96*sqrt(1/a - 1/(a+b) + 1/c - 1/(c+d)))
+    rr_upper <- exp(log(rr) + 1.96*sqrt(1/a - 1/(a+b) + 1/c - 1/(c+d)))
+    or_lower <- exp(log(or) - 1.96*sqrt(1/a + 1/b + 1/c + 1/d))
+    or_upper <- exp(log(or) + 1.96*sqrt(1/a + 1/b + 1/c + 1/d))
+    cat(sprintf("Risk Ratio (RR): %.2f (95%% CI: %.2f - %.2f)\n", rr, rr_lower, rr_upper))
+    cat(sprintf("Odds Ratio (OR): %.2f (95%% CI: %.2f - %.2f)\n", or, or_lower, or_upper))
+    cat(sprintf("Attributable Risk: %.1f%%\n", (a/(a+b) - c/(c+d))*100))
+    cat(sprintf("Population Attributable Risk: %.1f%%\n", ((a+c)/(a+b+c+d) - c/(c+d))*100))
+  }
+  print(effectsize::cramers_v(tbl))`,
+
+    age_sex_pyramid: `
+AGE-SEX PYRAMID — demographic distribution:
+Step 1 — Identify age and sex columns:
+  clean <- data[!is.na(data$${dv}) & !is.na(data$${iv}), ]
+  cat("Age column: ${dv} | Sex column: ${iv}\n")
+  cat("Total records:", nrow(clean), "\n")
+
+Step 2 — Create age groups if not already grouped:
+  if(is.numeric(clean$${dv})) {
+    clean$age_group <- cut(clean$${dv},
+      breaks=c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,Inf),
+      labels=c("0-4","5-9","10-14","15-19","20-24","25-29","30-34",
+               "35-39","40-44","45-49","50-54","55-59","60-64","65-69","70-74","75+"),
+      right=FALSE)
+  } else {
+    clean$age_group <- clean$${dv}
+  }
+
+Step 3 — Count by age group and sex:
+  pyramid_data <- clean %>%
+    count(age_group, sex_var = clean$${iv}) %>%
+    group_by(sex_var) %>%
+    mutate(pct = n/sum(n)*100)
+  cat("\n=== AGE-SEX DISTRIBUTION ===\n")
+  print(pyramid_data)
+
+Step 4 — Summary by sex:
+  cat("\n=== SUMMARY BY SEX ===\n")
+  print(table(clean$${iv}))
+  cat("\nMedian age by sex:\n")
+  if(is.numeric(clean$${dv})) {
+    print(tapply(clean$${dv}, clean$${iv}, median, na.rm=TRUE))
+    cat("\nMean age by sex:\n")
+    print(tapply(clean$${dv}, clean$${iv}, mean, na.rm=TRUE))
+  }
+  cat("\nAge group distribution:\n")
+  print(table(clean$age_group, clean$${iv}))`,
+
+    survival_analysis: `
+SURVIVAL ANALYSIS — time-to-event (case fatality, time to recovery):
+Step 1 — Calculate time to event:
+  clean <- data[!is.na(data$${dv}) & !is.na(data$${iv}), ]
+  clean$date_onset <- as.Date(clean$${iv})
+  clean$date_outcome <- as.Date(clean$${dv})
+  clean$days_to_event <- as.numeric(clean$date_outcome - clean$date_onset)
+  clean <- clean[clean$days_to_event >= 0, ]
+  cat("Valid paired records:", nrow(clean), "\n")
+  cat("\nTime to event summary (days):\n")
+  print(summary(clean$days_to_event))
+
+Step 2 — Define event indicator (1=event occurred, 0=censored):
+  if("outcome" %in% names(clean)) {
+    clean$event <- ifelse(tolower(clean$outcome) %in% c("deceased","died","death"), 1, 0)
+  } else {
+    clean$event <- 1
+  }
+  cat("\nEvent distribution:\n")
+  print(table(Event=clean$event))
+
+Step 3 — Kaplan-Meier survival analysis:
+  if(!requireNamespace("survival", quietly=TRUE)) install.packages("survival")
+  library(survival)
+  km_fit <- survfit(Surv(days_to_event, event) ~ 1, data=clean)
+  cat("\n=== KAPLAN-MEIER SURVIVAL SUMMARY ===\n")
+  print(summary(km_fit, times=c(7,14,21,28)))
+
+Step 4 — Case fatality rate:
+  cat("\n=== CASE FATALITY RATE ===\n")
+  cfr <- mean(clean$event)*100
+  cat(sprintf("Overall CFR: %.1f%% (%d deaths / %d cases)\n",
+    cfr, sum(clean$event), nrow(clean)))
+  cat("Median survival time:", summary(km_fit)$table["median"], "days\n")
+
+Step 5 — Stratified analysis if grouping variable available:
+  if("${iv}" != "${dv}" && "${iv}" %in% names(clean)) {
+    cat("\n=== STRATIFIED ANALYSIS ===\n")
+    km_strat <- survfit(Surv(days_to_event, event) ~ clean$${iv}, data=clean)
+    print(km_strat)
+  }`,
+
+    moving_average: `
+MOVING AVERAGE — rolling trend analysis for surveillance data:
+Step 1 — Parse date and count cases by period:
+  suppressPackageStartupMessages(library(lubridate))
+  clean <- data[!is.na(data$${dv}), ]
+  clean$date <- as.Date(clean$${dv})
+  daily_counts <- clean %>% count(date) %>% arrange(date) %>%
+    complete(date=seq.Date(min(date), max(date), by="day"), fill=list(n=0))
+  cat("Date range:", format(min(daily_counts$date)), "to", format(max(daily_counts$date)), "\n")
+  cat("Total days:", nrow(daily_counts), "| Total cases:", sum(daily_counts$n), "\n")
+
+Step 2 — Calculate 7-day moving average:
+  daily_counts$ma7 <- stats::filter(daily_counts$n, rep(1/7, 7), sides=2)
+  daily_counts$ma14 <- stats::filter(daily_counts$n, rep(1/14, 14), sides=2)
+  cat("\n=== DAILY COUNTS WITH MOVING AVERAGES ===\n")
+  print(daily_counts[!is.na(daily_counts$ma7), ])
+
+Step 3 — Peak detection:
+  cat("\n=== PEAK ANALYSIS ===\n")
+  cat("Peak daily cases:", max(daily_counts$n), "on", format(daily_counts$date[which.max(daily_counts$n)]), "\n")
+  ma_clean <- daily_counts[!is.na(daily_counts$ma7), ]
+  cat("Peak 7-day average:", round(max(ma_clean$ma7, na.rm=TRUE), 1),
+    "on", format(ma_clean$date[which.max(ma_clean$ma7)]), "\n")
+  cat("\nWeekly totals:\n")
+  weekly <- clean %>% mutate(week=floor_date(date, "week")) %>% count(week) %>% arrange(week)
+  print(weekly)
+
+Step 4 — Trend direction:
+  if(nrow(ma_clean) >= 2) {
+    recent_half <- tail(ma_clean$ma7, ceiling(nrow(ma_clean)/2))
+    earlier_half <- head(ma_clean$ma7, floor(nrow(ma_clean)/2))
+    trend <- if(mean(recent_half, na.rm=TRUE) > mean(earlier_half, na.rm=TRUE)) "INCREASING" else "DECREASING"
+    cat("\nOverall trend:", trend, "\n")
+    cat("Earlier period mean:", round(mean(earlier_half, na.rm=TRUE), 1), "cases/day\n")
+    cat("Recent period mean:", round(mean(recent_half, na.rm=TRUE), 1), "cases/day\n")
+  }`,
 
   return instructions[test] || '- Run appropriate statistical analysis and print all results clearly'
 }
