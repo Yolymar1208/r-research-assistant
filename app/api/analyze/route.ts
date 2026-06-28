@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAnalysisPlan, generateRScript } from '@/app/lib/aiService'
 import { checkUsageLimit } from '@/app/lib/usageTracker'
+import { checkRateLimit } from '@/app/lib/rateLimiter'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import type { AnalyzeRequest, AnalyzeResponse } from '@/app/types'
@@ -33,9 +34,7 @@ async function getUserId(request: NextRequest): Promise<string | null> {
     )
     const { data: { user } } = await supabase.auth.getUser()
     return user?.id ?? null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeResponse>> {
@@ -43,7 +42,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeRe
     const ip = getClientIP(request)
     const userId = await getUserId(request)
 
-    // Check usage limit by user_id (or IP as fallback)
+    // Rate limit check — max 10 requests per minute
+    const rateLimit = await checkRateLimit(userId, ip)
+    if (!rateLimit.allowed) {
+      return NextResponse.json({
+        success: false,
+        error: `Too many requests. Please wait ${rateLimit.resetIn} seconds before trying again.`,
+      }, { status: 429 })
+    }
+
+    // Usage limit check
     const usage = await checkUsageLimit(userId, ip)
     if (!usage.allowed) {
       return NextResponse.json({
@@ -55,12 +63,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalyzeRe
     const body: AnalyzeRequest = await request.json()
     const { datasetSummary, researchQuestion, hypothesis } = body
 
-    if (!datasetSummary) {
-      return NextResponse.json({ success: false, error: 'Dataset summary is required.' }, { status: 400 })
-    }
-    if (!researchQuestion?.trim()) {
-      return NextResponse.json({ success: false, error: 'Research question is required.' }, { status: 400 })
-    }
+    if (!datasetSummary) return NextResponse.json({ success: false, error: 'Dataset summary is required.' }, { status: 400 })
+    if (!researchQuestion?.trim()) return NextResponse.json({ success: false, error: 'Research question is required.' }, { status: 400 })
 
     console.log('[Analyze API] Creating analysis plan...')
     const plan = await createAnalysisPlan(datasetSummary, researchQuestion, hypothesis || '')
