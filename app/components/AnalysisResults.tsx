@@ -34,6 +34,13 @@ export default function AnalysisResults({ result }: Props) {
     result.execution.success ? 'interpretation' : 'output'
   )
 
+  const tabs = [
+    { key: 'plan' as const, label: 'Analysis Plan' },
+    { key: 'rscript' as const, label: 'R Script' },
+    { key: 'output' as const, label: 'Raw R Output' },
+    { key: 'interpretation' as const, label: 'AI Interpretation' },
+  ]
+
   function downloadRScript() {
     const blob = new Blob([result.rScript], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -44,79 +51,100 @@ export default function AnalysisResults({ result }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  async function downloadPDFReport() {
+    try {
+      const res = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, datasetName: 'Dataset' }),
+      })
+      const html = await res.text()
+      const win = window.open('', '_blank')
+      if (win) {
+        win.document.write(html)
+        win.document.close()
+        win.focus()
+        setTimeout(() => win.print(), 800)
+      }
+    } catch (err) {
+      console.error('Report generation failed:', err)
+    }
+  }
+
   return (
-    <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-      <div style={{ background: result.execution.success ? '#f0fdf4' : '#fef2f2', padding: '12px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: result.execution.success ? '#166534' : '#991b1b' }}>
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between ${result.execution.success ? 'bg-green-50' : 'bg-red-50'}`}>
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-medium ${result.execution.success ? 'text-green-800' : 'text-red-800'}`}>
             {result.execution.success ? '✓ Analysis Complete' : '✗ R Execution Failed'}
           </span>
-          <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>
-            {TEST_LABELS[result.plan.selectedTest] || result.plan.selectedTest} · {result.execution.executionTimeMs}ms
+          <span className="text-xs text-gray-500">
+            {TEST_LABELS[result.plan.selectedTest]} · {result.execution.executionTimeMs}ms
           </span>
         </div>
-        <button
-          onClick={downloadRScript}
-          style={{ fontSize: '12px', background: '#fff', border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          ↓ analysis.R
-        </button>
+        <div className="flex gap-2">
+          <button onClick={downloadRScript} className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium">↓ analysis.R</button>
+          <button onClick={downloadPDFReport} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium">↓ PDF Report</button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-        {[
-          { key: 'plan', label: 'Plan' },
-          { key: 'rscript', label: 'R Script' },
-          { key: 'output', label: 'Raw R Output' },
-          { key: 'interpretation', label: 'Interpretation' },
-        ].map((tab) => (
+      <div className="flex border-b border-gray-200 bg-gray-50">
+        {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as typeof activeTab)}
-            style={{
-              padding: '8px 16px',
-              fontSize: '13px',
-              fontWeight: 500,
-              background: activeTab === tab.key ? '#fff' : 'transparent',
-              border: 'none',
-              borderBottom: activeTab === tab.key ? '2px solid #2563eb' : '2px solid transparent',
-              color: activeTab === tab.key ? '#1e40af' : '#666',
-              cursor: 'pointer',
-            }}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-gray-600 hover:text-gray-900'}`}
           >
             {tab.label}
           </button>
         ))}
       </div>
 
-      <div style={{ padding: '16px' }}>
+      <div className="p-4">
         {activeTab === 'plan' && (
-          <div style={{ fontSize: '14px', lineHeight: 1.6 }}>
-            <p><strong>Research Question:</strong> {result.plan.researchQuestion}</p>
-            <p style={{ marginTop: '8px' }}><strong>Test:</strong> {TEST_LABELS[result.plan.selectedTest] || result.plan.selectedTest}</p>
-            <p style={{ marginTop: '8px' }}><strong>Hypothesis:</strong> {result.plan.hypothesis}</p>
-            {result.plan.dependentVariable && <p style={{ marginTop: '8px' }}><strong>Dependent:</strong> {result.plan.dependentVariable}</p>}
-            {result.plan.independentVariable && <p style={{ marginTop: '8px' }}><strong>Independent:</strong> {result.plan.independentVariable}</p>}
-            <p style={{ marginTop: '8px' }}><strong>Rationale:</strong> {result.plan.testRationale}</p>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-100 rounded p-3">
+              <p className="text-sm font-medium text-blue-900">Research Question</p>
+              <p className="text-sm text-blue-800 mt-1">{result.plan.researchQuestion}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="font-medium text-gray-700">Statistical Test</p><p className="text-gray-900 mt-0.5">{TEST_LABELS[result.plan.selectedTest]}</p></div>
+              <div><p className="font-medium text-gray-700">Hypothesis</p><p className="text-gray-900 mt-0.5">{result.plan.hypothesis}</p></div>
+              {result.plan.dependentVariable && <div><p className="font-medium text-gray-700">Dependent Variable</p><p className="font-mono text-sm text-gray-900 mt-0.5">{result.plan.dependentVariable}</p></div>}
+              {result.plan.independentVariable && <div><p className="font-medium text-gray-700">Independent Variable</p><p className="font-mono text-sm text-gray-900 mt-0.5">{result.plan.independentVariable}</p></div>}
+            </div>
+            <div><p className="font-medium text-gray-700 text-sm">Rationale</p><p className="text-sm text-gray-700 mt-1">{result.plan.testRationale}</p></div>
           </div>
         )}
 
         {activeTab === 'rscript' && (
-          <pre style={{ background: '#1f2937', color: '#10b981', padding: '12px', borderRadius: '4px', fontSize: '12px', overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: '500px' }}>
+          <pre className="bg-gray-900 text-green-400 rounded p-4 text-xs overflow-x-auto leading-relaxed font-mono">
             {result.rScript}
           </pre>
         )}
 
         {activeTab === 'output' && (
-          <pre style={{ background: '#1f2937', color: '#f3f4f6', padding: '12px', borderRadius: '4px', fontSize: '12px', overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: '500px' }}>
+          <pre className="bg-gray-900 text-gray-100 rounded p-4 text-xs overflow-x-auto leading-relaxed font-mono whitespace-pre-wrap">
             {result.execution.rawOutput || '(no output)'}
           </pre>
         )}
 
         {activeTab === 'interpretation' && (
-          <pre style={{ fontSize: '14px', whiteSpace: 'pre-wrap', fontFamily: 'system-ui, -apple-system, sans-serif', lineHeight: 1.6, color: '#1f2937', maxHeight: '600px', overflowY: 'auto' }}>
-            {result.aiInterpretation || 'No interpretation available.'}
-          </pre>
+          <div>
+            {result.aiInterpretation ? (
+              <div className="prose prose-sm max-w-none text-gray-800">
+                {result.aiInterpretation.split('\n').map((line, i) => {
+                  if (line.startsWith('**') && line.endsWith('**')) {
+                    return <h3 key={i} className="font-semibold text-gray-900 mt-4 mb-1 first:mt-0">{line.replace(/\*\*/g, '')}</h3>
+                  }
+                  if (line.trim() === '') return <br key={i} />
+                  return <p key={i} className="text-sm text-gray-700 mb-1">{line.replace(/\*\*([^*]+)\*\*/g, '$1')}</p>
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">No interpretation available.</p>
+            )}
+          </div>
         )}
       </div>
     </div>
