@@ -375,13 +375,59 @@ Generate the complete script now. Pure R only.`
 }
 
 export function buildInterpretationPrompt(plan: AnalysisPlan, rScript: string, rawOutput: string): string {
-  return `You are a senior biostatistician interpreting R output for a clinical researcher.
+  const isEpiTest = ['epidemic_curve','attack_rate_table','age_sex_pyramid','survival_analysis','moving_average'].includes(plan.selectedTest)
 
-RULES:
-- Base interpretation ENTIRELY on the R output below
-- Never fabricate or estimate values
-- Use plain language a nurse, doctor, or epidemiologist can understand
-- If output shows errors, say so clearly
+  const epiSections = `Write your interpretation using the standard WHO/FETP/DOH outbreak investigation format:
+
+**1. Summary of Findings**
+2-3 sentences. State the key finding and whether it supports or contradicts the null hypothesis.
+
+**2. Results — Time**
+Describe the temporal distribution. When did the outbreak start, peak, and end? What does the epidemic curve shape suggest (point source, propagated, continuous)? Include exact dates and counts from R output.
+
+**3. Results — Person**
+Describe who was affected. Age distribution, sex breakdown, attack rates by group, case fatality rate, survival times — whichever is relevant. Use exact values from R output only.
+
+**4. Results — Place**
+Note any geographic information available. If no place data was analyzed, state that place distribution was not assessed and recommend a spot map as next step.
+
+**5. Statistical Results**
+Report exact values: test statistic, p-value, confidence intervals, risk ratios, odds ratios, effect sizes — exactly as they appear in R output. Use a table where appropriate.
+
+**6. Discussion**
+Interpret findings in public health context. What does this mean for outbreak control? Are findings consistent with known epidemiology? Flag any paradoxical or unexpected findings with ⚠️.
+
+**7. Recommendations**
+List 3-5 concrete, actionable public health recommendations. Format as numbered list using FETP categories: (1) immediate control measures, (2) surveillance enhancement, (3) further investigation, (4) prevention.
+
+**8. Limitations**
+List 3-5 specific limitations: sample size, potential biases, missing data, confounders, R output warnings.`
+
+  const standardSections = `Write using these five sections:
+
+**1. Summary of Findings**
+2-3 sentences. State whether significant or not.
+
+**2. Statistical Results**
+Exact values from R: test statistic, df, p-value, CI, effect size. Use a table where appropriate.
+
+**3. Clinical/Practical Interpretation**
+What do these results mean in practice for a nurse, doctor, or public health officer?
+
+**4. Assumptions Check**
+Were statistical assumptions met? List each assumption and whether it was satisfied based on R output.
+
+**5. Limitations and Next Steps**
+Sample size, confounders not controlled, follow-up analyses recommended.`
+
+  return `You are a senior field epidemiologist and biostatistician interpreting R output for a public health report.
+
+STRICT RULES:
+- Base interpretation ENTIRELY on the R output below — never fabricate or estimate values
+- If a value is not in the R output, say it was not computed — do not invent it
+- Use plain language suitable for a DOH, WHO, or ethics board report
+- If output shows errors, describe them clearly
+- Flag any convergence warnings, small samples, or violated assumptions with ⚠️
 
 RESEARCH QUESTION: ${plan.researchQuestion}
 NULL HYPOTHESIS: ${plan.hypothesis}
@@ -394,22 +440,7 @@ R OUTPUT:
 ${rawOutput}
 ---
 
-Write using these five sections:
+${isEpiTest ? epiSections : standardSections}
 
-**1. Summary of Findings**
-2-3 sentences. State whether significant or not.
-
-**2. Statistical Results**
-Exact values from R: test statistic, df, p-value, CI, effect size.
-
-**3. Clinical/Practical Interpretation**
-What do these results mean in practice?
-
-**4. Assumptions Check**
-Were assumptions met based on R output?
-
-**5. Limitations and Next Steps**
-Sample size, confounders, follow-up analyses.
-
-Do not invent any numbers.`
+Do not invent any numbers. All values must come directly from the R output above.`
 }
