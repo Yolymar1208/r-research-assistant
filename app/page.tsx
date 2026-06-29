@@ -73,10 +73,12 @@ export default function Home() {
     let plan: AnalysisPlan
     let rScript: string
     try {
+      // Strip fileBase64 from summary before sending to analyze (keep payload small)
+      const { fileBase64: _fb, ...summaryForAnalyze } = datasetSummary as typeof datasetSummary & { fileBase64?: string }
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ datasetSummary, researchQuestion, hypothesis }),
+        body: JSON.stringify({ datasetSummary: summaryForAnalyze, researchQuestion, hypothesis }),
       })
       const data = await res.json()
       if (!data.success) {
