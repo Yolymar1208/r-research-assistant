@@ -93,7 +93,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     const execution = await executeRScript(finalScript, excelFilePath || '')
 
     if (!execution.success) {
-      return NextResponse.json({ success: false, execution, error: execution.errorMessage || 'R execution failed.' })
+      console.error('[Execute-R] R failed. Output:', execution.rawOutput?.slice(0, 500))
+      console.error('[Execute-R] Error:', execution.errorMessage)
+      return NextResponse.json({ success: false, execution, error: String(execution.errorMessage || 'R execution failed.') })
     }
 
     console.log('[Execute-R API] Interpreting R output...')
