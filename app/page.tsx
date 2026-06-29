@@ -103,6 +103,8 @@ export default function Home() {
           excelFilePath: datasetSummary?.tempFilePath || '',
           datasetName: datasetSummary?.fileName || 'Unknown',
           storagePath: (datasetSummary as typeof datasetSummary & { storagePath?: string })?.storagePath || null,
+          fileBase64: (datasetSummary as typeof datasetSummary & { fileBase64?: string })?.fileBase64 || null,
+          fileExt: (datasetSummary as typeof datasetSummary & { fileExt?: string })?.fileExt || 'xlsx',
         }),
       })
       const data = await res.json()
