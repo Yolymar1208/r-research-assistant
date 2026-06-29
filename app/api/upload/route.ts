@@ -65,12 +65,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
     // Inspect dataset
     const summary = inspectDataset(buffer, file.name, tempFilePath)
 
-    // Include base64 encoded file data in summary for direct transmission to R
     const summaryWithStorage = {
       ...summary,
       storagePath: storagePath || null,
-      fileBase64: buffer.toString('base64'),
-      fileExt: ext.replace('.', ''),
     }
 
     return NextResponse.json({ success: true, summary: summaryWithStorage })
