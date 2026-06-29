@@ -49,24 +49,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Save to local temp (for immediate R execution)
+    // Save to temp for immediate inspection
     const tempDir = path.join(os.tmpdir(), 'r-research-assistant')
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
     const sessionId = `upload_${Date.now()}`
     const tempFilePath = path.join(tempDir, `${sessionId}${ext}`)
     fs.writeFileSync(tempFilePath, buffer)
 
-    // Also save to Supabase Storage (for persistence across retries)
+    // Upload to Supabase Storage for persistence
     const userId = await getUserId(request)
     const { storagePath } = await uploadDatasetToStorage(buffer, file.name, userId, sessionId)
 
     // Inspect dataset
     const summary = inspectDataset(buffer, file.name, tempFilePath)
 
-    // Store storage path in summary for later retrieval
+    // Include base64 encoded file data in summary for direct transmission to R
     const summaryWithStorage = {
       ...summary,
       storagePath: storagePath || null,
+      fileBase64: buffer.toString('base64'),
+      fileExt: ext.replace('.', ''),
     }
 
     return NextResponse.json({ success: true, summary: summaryWithStorage })
