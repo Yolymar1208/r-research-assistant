@@ -20,8 +20,6 @@ export default function Home() {
   const [usage, setUsage] = useState<{ currentCount: number; limit: number; plan: string; remaining: number } | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const fileB64Ref = useRef<string | null>(null)
-  const fileExtRef = useRef<string>('xlsx')
 
   useEffect(() => {
     fetch('/api/usage').then(r => r.json()).then(data => { if (data.success) setUsage(data) }).catch(() => {})
@@ -30,16 +28,13 @@ export default function Home() {
 
   async function handleFileUpload(file: File) {
     setStep('upload'); setErrorMessage(null); setDatasetSummary(null); setAnalysisResult(null)
-    fileB64Ref.current = null
     const formData = new FormData()
     formData.append('file', file)
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await res.json()
       if (!data.success) { setErrorMessage(data.error || 'Upload failed.'); setStep('error'); return }
-      const { fileBase64, fileExt, ...summary } = data.summary
-      if (fileBase64) { fileB64Ref.current = fileBase64; fileExtRef.current = fileExt || 'xlsx' }
-      setDatasetSummary(summary as DatasetSummary)
+      setDatasetSummary(data.summary)
       setStep('inspect')
     } catch { setErrorMessage('Network error during upload.'); setStep('error') }
   }
@@ -81,8 +76,7 @@ export default function Home() {
           excelFilePath: datasetSummary?.tempFilePath || '',
           datasetName: datasetSummary?.fileName || 'Unknown',
           storagePath: (datasetSummary as DatasetSummary & { storagePath?: string })?.storagePath || null,
-          fileBase64: fileB64Ref.current,
-          fileExt: fileExtRef.current,
+
         }),
       })
       const data = await res.json()
