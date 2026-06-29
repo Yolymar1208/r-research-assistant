@@ -2,9 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase'
-import type { AppStep, DatasetSummary, AnalysisPlan, RExecutionResult, AnalysisResult } from '@/app/types'
+import type {
+  AppStep,
+  DatasetSummary,
+  AnalysisPlan,
+  RExecutionResult,
+  AnalysisResult,
+} from '@/app/types'
 import DatasetSummaryPanel from '@/app/components/DatasetSummaryPanel'
 import StatusIndicator from '@/app/components/StatusIndicator'
+import AnalysisResults from '@/app/components/AnalysisResults'
 
 const supabase = createClient()
 
@@ -75,7 +82,6 @@ export default function Home() {
           excelFilePath: datasetSummary?.tempFilePath || '',
           datasetName: datasetSummary?.fileName || 'Unknown',
           storagePath: (datasetSummary as DatasetSummary & { storagePath?: string })?.storagePath || null,
-
         }),
       })
       const data = await res.json()
@@ -154,28 +160,17 @@ export default function Home() {
             <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">What do you want to find out?</label>
-                <textarea value={researchQuestion} onChange={(e) => setResearchQuestion(e.target.value)} placeholder="e.g. Is there a significant difference in hospital stay days between patients with and without comorbidities?" rows={3} className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
+                <textarea value={researchQuestion} onChange={(e) => setResearchQuestion(e.target.value)} placeholder="e.g. What is the epidemic curve of COVID-19 cases by symptom onset date?" rows={3} className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Hypothesis <span className="font-normal text-gray-400">(optional)</span></label>
-                <textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="e.g. Patients with comorbidities will have significantly longer hospital stays." rows={2} className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
+                <textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="e.g. Cases peaked in week 2." rows={2} className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
               </div>
             </div>
           </section>
         )}
 
         {datasetSummary && <section><h2 className="text-sm font-semibold text-gray-700 mb-2">4. Analysis Status</h2><StatusIndicator step={step} errorMessage={errorMessage} /></section>}
-
-        {datasetSummary && usage && usage.plan === 'free' && (
-          <section>
-            <div style={{ background: usage.remaining === 0 ? '#fef2f2' : usage.remaining <= 2 ? '#fffbe6' : '#f0f9ff', border: `1px solid ${usage.remaining === 0 ? '#fecaca' : usage.remaining <= 2 ? '#fde68a' : '#bae6fd'}`, borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: usage.remaining === 0 ? '#991b1b' : usage.remaining <= 2 ? '#92400e' : '#0369a1' }}>
-                {usage.remaining === 0 ? '⚠ Free limit reached' : `${usage.remaining} of ${usage.limit} free analyses remaining this month`}
-              </span>
-              {usage.remaining === 0 && <a href="/landing#pricing" style={{ fontSize: '12px', fontWeight: 600, color: '#fff', background: '#1a3a5c', padding: '4px 12px', borderRadius: '6px', textDecoration: 'none' }}>Upgrade</a>}
-            </div>
-          </section>
-        )}
 
         {datasetSummary && (
           <section>
@@ -187,45 +182,16 @@ export default function Home() {
                 </span>
               ) : 'Generate Analysis'}
             </button>
-            {!researchQuestion.trim() && <p className="text-xs text-gray-400 text-center mt-2">Enter a research question to continue</p>}
           </section>
         )}
 
-        {analysisResult && (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2>
-            <div style={{ padding: '16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-              <p style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
-                ✓ {analysisResult.execution.success ? 'Analysis Complete' : 'Execution Failed'}
-              </p>
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                Test: {analysisResult.plan.selectedTest} · Time: {analysisResult.execution.executionTimeMs}ms
-              </p>
-              <details style={{ marginTop: '16px' }}>
-                <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>R Output ({(analysisResult.execution.rawOutput || '').length} chars)</summary>
-                <pre style={{ fontSize: '11px', background: '#1f2937', color: '#f3f4f6', padding: '12px', marginTop: '8px', borderRadius: '4px', whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto' }}>
-                  {analysisResult.execution.rawOutput || '(no output)'}
-                </pre>
-              </details>
-              <details style={{ marginTop: '8px' }}>
-                <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>AI Interpretation ({(analysisResult.aiInterpretation || '').length} chars)</summary>
-                <pre style={{ fontSize: '13px', whiteSpace: 'pre-wrap', fontFamily: 'system-ui', padding: '12px', marginTop: '8px', maxHeight: '400px', overflow: 'auto' }}>
-                  {analysisResult.aiInterpretation || '(no interpretation)'}
-                </pre>
-              </details>
-            </div>
-          </section>
-        )}
+        {analysisResult && <section><h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2><AnalysisResults result={analysisResult} /></section>}
 
         {step === 'error' && !analysisResult && errorMessage && (
-          <section className={errorMessage.startsWith('FREE_LIMIT:') ? 'bg-amber-50 border border-amber-200 rounded-lg p-4' : 'bg-red-50 border border-red-200 rounded-lg p-4'}>
+          <section className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm font-medium text-red-700">Error</p>
             <p className="text-sm text-red-600 mt-1">{errorMessage.replace('FREE_LIMIT:', '')}</p>
-            {errorMessage.startsWith('FREE_LIMIT:') ? (
-              <a href="/landing#pricing" className="mt-3 inline-block text-xs text-white bg-blue-600 px-3 py-1.5 rounded">View pricing →</a>
-            ) : (
-              <button onClick={runAnalysis} className="mt-3 text-xs text-red-700 border border-red-300 px-3 py-1.5 rounded">Try Again</button>
-            )}
+            <button onClick={runAnalysis} className="mt-3 text-xs text-red-700 border border-red-300 px-3 py-1.5 rounded">Try Again</button>
           </section>
         )}
       </div>
