@@ -5,9 +5,6 @@ import { incrementUsage, saveAnalysisHistory } from '@/app/lib/usageTracker'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import type { AnalysisPlan, RExecutionResult } from '@/app/types'
-import * as fs from 'fs'
-import * as path from 'path'
-import * as os from 'os'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,8 +67,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
 
     // Restore file from base64 if temp file is missing
     let finalFilePath = excelFilePath || ''
-    if (fileBase64 && (!finalFilePath || !fs.existsSync(finalFilePath))) {
+    if (fileBase64) {
       try {
+        const fs = await import('fs')
+        const path = await import('path')
+        const os = await import('os')
         const tempDir = path.join(os.tmpdir(), 'r-research-assistant')
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
         const ext = fileExt || 'xlsx'
