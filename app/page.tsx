@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase'
 import type {
   AppStep,
@@ -26,7 +26,9 @@ export default function Home() {
   const [usage, setUsage] = useState<{ currentCount: number; limit: number; plan: string; remaining: number } | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const fileDataRef = useRef<{ base64: string; ext: string } | null>(null)
+  // Store file as base64 in a ref — does NOT trigger re-renders
+  const fileB64Ref = useRef<string | null>(null)
+  const fileExtRef = useRef<string>('xlsx')
 
   useEffect(() => {
     fetch('/api/usage')
@@ -43,19 +45,24 @@ export default function Home() {
     setErrorMessage(null)
     setDatasetSummary(null)
     setAnalysisResult(null)
+    fileB64Ref.current = null
+
     const formData = new FormData()
     formData.append('file', file)
+
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await res.json()
       if (!data.success) { setErrorMessage(data.error || 'Upload failed.'); setStep('error'); return }
-      // Store file data in ref (not state) to avoid large state/render issues
-      if (data.summary.fileBase64) {
-        fileDataRef.current = { base64: data.summary.fileBase64, ext: data.summary.fileExt || 'xlsx' }
+
+      // Extract fileBase64 from response and store in ref (not state)
+      const { fileBase64, fileExt, ...summary } = data.summary
+      if (fileBase64) {
+        fileB64Ref.current = fileBase64
+        fileExtRef.current = fileExt || 'xlsx'
       }
-      // Remove fileBase64 from summary before storing in state
-      const { fileBase64: _b, fileExt: _e, ...cleanSummary } = data.summary
-      setDatasetSummary(cleanSummary as typeof data.summary)
+
+      setDatasetSummary(summary as DatasetSummary)
       setStep('inspect')
     } catch { setErrorMessage('Network error during upload.'); setStep('error') }
   }
@@ -79,6 +86,7 @@ export default function Home() {
     setStep('analyzing')
     let plan: AnalysisPlan
     let rScript: string
+
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -109,9 +117,9 @@ export default function Home() {
           rScript, plan,
           excelFilePath: datasetSummary?.tempFilePath || '',
           datasetName: datasetSummary?.fileName || 'Unknown',
-          storagePath: (datasetSummary as typeof datasetSummary & { storagePath?: string })?.storagePath || null,
-          fileBase64: fileDataRef.current?.base64 || null,
-          fileExt: fileDataRef.current?.ext || 'xlsx',
+          storagePath: (datasetSummary as DatasetSummary & { storagePath?: string })?.storagePath || null,
+          fileBase64: fileB64Ref.current,
+          fileExt: fileExtRef.current,
         }),
       })
       const data = await res.json()
@@ -140,6 +148,7 @@ export default function Home() {
     setHypothesis('')
     setAnalysisResult(null)
     setErrorMessage(null)
+    fileB64Ref.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -160,18 +169,12 @@ export default function Home() {
                 Start Over
               </button>
             )}
-            <a href="/history" className="text-xs text-gray-600 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50">
-              History
-            </a>
-            <a href="/landing" className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-50">
-              Pricing
-            </a>
+            <a href="/history" className="text-xs text-gray-600 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50">History</a>
+            <a href="/landing" className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-50">Pricing</a>
             {userEmail && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 hidden sm:block">{userEmail}</span>
-                <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded hover:bg-red-50">
-                  Sign out
-                </button>
+                <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded hover:bg-red-50">Sign out</button>
               </div>
             )}
           </div>
@@ -187,9 +190,7 @@ export default function Home() {
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              isDragging ? 'border-blue-400 bg-blue-50' : datasetSummary ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'
-            }`}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragging ? 'border-blue-400 bg-blue-50' : datasetSummary ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'}`}
           >
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={onFileChange} className="hidden" />
             {datasetSummary ? (
@@ -230,9 +231,7 @@ export default function Home() {
                 <p className="text-xs text-gray-400 mt-1">Be specific about which variables you want to compare or relate.</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hypothesis <span className="font-normal text-gray-400">(optional)</span>
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hypothesis <span className="font-normal text-gray-400">(optional)</span></label>
                 <textarea
                   value={hypothesis}
                   onChange={(e) => setHypothesis(e.target.value)}
@@ -268,9 +267,7 @@ export default function Home() {
                   ))}
                 </div>
                 {usage.remaining === 0 && (
-                  <a href="/landing#pricing" style={{ fontSize: '12px', fontWeight: 600, color: '#fff', background: '#1a3a5c', padding: '4px 12px', borderRadius: '6px', textDecoration: 'none' }}>
-                    Upgrade
-                  </a>
+                  <a href="/landing#pricing" style={{ fontSize: '12px', fontWeight: 600, color: '#fff', background: '#1a3a5c', padding: '4px 12px', borderRadius: '6px', textDecoration: 'none' }}>Upgrade</a>
                 )}
               </div>
             </div>
