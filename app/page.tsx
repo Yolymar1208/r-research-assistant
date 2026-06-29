@@ -94,18 +94,18 @@ export default function Home() {
       }
       const execData = data.execution as RExecutionResult | undefined
       const rawOutput = String((execData?.rawOutput) || '').replace(/\0/g, '')
-      const errorMsg = String((execData?.errorMessage) || String(data.error || ''))
+      const execErrorMsg = String((execData?.errorMessage) || String(data.error || ''))
       const execution: RExecutionResult = {
         success: Boolean(execData?.success ?? false),
         rawOutput,
-        errorMessage: errorMsg || null,
+        errorMessage: execErrorMsg || null,
         executionTimeMs: Number(execData?.executionTimeMs || 0),
         rScript,
       }
       const interpretation = String(data.interpretation || '').replace(/\0/g, '')
       const result: AnalysisResult = { plan, rScript, execution, aiInterpretation: interpretation, completedAt: new Date().toISOString() }
-      setStep(execution.success ? 'complete' : 'error')
       const errorMsg = String(execution.errorMessage || (data.error ? String(data.error) : 'R execution failed'))
+      setStep(execution.success ? 'complete' : 'error')
       if (!execution.success) setErrorMessage(errorMsg)
       setAnalysisResult(result)
       fetch('/api/usage').then(r => r.json()).then(d => { if (d.success) setUsage(d) }).catch(() => {})
