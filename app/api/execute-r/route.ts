@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeRScript, wakeRApi } from '@/app/lib/rExecutor'
 import { interpretROutput } from '@/app/lib/aiService'
 import { incrementUsage, saveAnalysisHistory } from '@/app/lib/usageTracker'
+import { getSignedUrl } from '@/app/lib/fileStorage'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import type { AnalysisPlan, RExecutionResult } from '@/app/types'
@@ -43,8 +44,6 @@ interface ExecuteRequest {
   excelFilePath?: string
   datasetName?: string
   storagePath?: string
-  fileBase64?: string
-  fileExt?: string
 }
 
 interface ExecuteResponse {
@@ -59,27 +58,33 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     const ip = getClientIP(request)
     const userId = await getUserId(request)
     const body: ExecuteRequest = await request.json()
-    const { rScript, plan, excelFilePath, datasetName, fileBase64, fileExt } = body
+    const { rScript, plan, excelFilePath, datasetName, storagePath } = body
 
     if (!rScript?.trim()) {
       return NextResponse.json({ success: false, error: 'R script is required.' }, { status: 400 })
     }
 
-    // Restore file from base64 if temp file is missing
-    let finalFilePath = excelFilePath || ''
-    if (fileBase64) {
-      try {
-        const fs = await import('fs')
-        const path = await import('path')
-        const os = await import('os')
-        const tempDir = path.join(os.tmpdir(), 'r-research-assistant')
-        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
-        const ext = fileExt || 'xlsx'
-        finalFilePath = path.join(tempDir, `restored_${Date.now()}.${ext}`)
-        fs.writeFileSync(finalFilePath, Buffer.from(fileBase64, 'base64'))
-        console.log('[Execute-R] File restored from base64:', finalFilePath)
-      } catch (err) {
-        console.warn('[Execute-R] Could not restore from base64:', err)
+    // Get a fresh signed URL from Supabase Storage and inject into R script
+    let finalScript = rScript
+    if (storagePath) {
+      const signedUrl = await getSignedUrl(storagePath)
+      if (signedUrl) {
+        const ext = storagePath.split('.').pop() || 'xlsx'
+        const tempPath = `/tmp/joanresearch_${Date.now()}.${ext}`
+        // Prepend download code — runs before anything else in the script
+        const downloadLines = [
+          '# === DOWNLOAD DATASET FROM SECURE STORAGE ===',
+          `temp_dataset_path <- "${tempPath}"`,
+          `download.file("${signedUrl}", temp_dataset_path, mode="wb", quiet=TRUE)`,
+          `file_path <- temp_dataset_path`,
+          '',
+        ].join('\n')
+        // Replace the file_path line in the script
+        finalScript = rScript.replace(/^file_path\s*<-\s*["'][^"']*["']\s*$/m, `file_path <- temp_dataset_path`)
+        finalScript = downloadLines + finalScript
+        console.log('[Execute-R] Injected download.file() from Supabase Storage signed URL')
+      } else {
+        console.warn('[Execute-R] Could not generate signed URL for:', storagePath)
       }
     }
 
@@ -89,7 +94,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     }
 
     console.log('[Execute-R API] Running R script...')
-    const execution = await executeRScript(rScript, finalFilePath)
+    const execution = await executeRScript(finalScript, excelFilePath || '')
 
     if (!execution.success) {
       return NextResponse.json({ success: false, execution, error: execution.errorMessage || 'R execution failed.' })
@@ -99,7 +104,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     const interpretation = await interpretROutput(plan, rScript, execution.rawOutput)
 
     incrementUsage(userId, ip).catch(console.error)
-
     saveAnalysisHistory(userId, ip, {
       datasetName: datasetName || 'Unknown',
       researchQuestion: plan.researchQuestion,
