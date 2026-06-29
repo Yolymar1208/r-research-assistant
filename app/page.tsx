@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase'
 import type {
   AppStep,
@@ -26,6 +26,7 @@ export default function Home() {
   const [usage, setUsage] = useState<{ currentCount: number; limit: number; plan: string; remaining: number } | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileDataRef = useRef<{ base64: string; ext: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/usage')
@@ -48,7 +49,13 @@ export default function Home() {
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await res.json()
       if (!data.success) { setErrorMessage(data.error || 'Upload failed.'); setStep('error'); return }
-      setDatasetSummary(data.summary)
+      // Store file data in ref (not state) to avoid large state/render issues
+      if (data.summary.fileBase64) {
+        fileDataRef.current = { base64: data.summary.fileBase64, ext: data.summary.fileExt || 'xlsx' }
+      }
+      // Remove fileBase64 from summary before storing in state
+      const { fileBase64: _b, fileExt: _e, ...cleanSummary } = data.summary
+      setDatasetSummary(cleanSummary as typeof data.summary)
       setStep('inspect')
     } catch { setErrorMessage('Network error during upload.'); setStep('error') }
   }
@@ -73,13 +80,10 @@ export default function Home() {
     let plan: AnalysisPlan
     let rScript: string
     try {
-      // Strip fileBase64 from summary before sending to analyze (keep payload small)
-      const summaryForAnalyze = { ...datasetSummary }
-      delete (summaryForAnalyze as Record<string, unknown>).fileBase64
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ datasetSummary: summaryForAnalyze, researchQuestion, hypothesis }),
+        body: JSON.stringify({ datasetSummary, researchQuestion, hypothesis }),
       })
       const data = await res.json()
       if (!data.success) {
@@ -106,8 +110,8 @@ export default function Home() {
           excelFilePath: datasetSummary?.tempFilePath || '',
           datasetName: datasetSummary?.fileName || 'Unknown',
           storagePath: (datasetSummary as typeof datasetSummary & { storagePath?: string })?.storagePath || null,
-          fileBase64: (datasetSummary as typeof datasetSummary & { fileBase64?: string })?.fileBase64 || null,
-          fileExt: (datasetSummary as typeof datasetSummary & { fileExt?: string })?.fileExt || 'xlsx',
+          fileBase64: fileDataRef.current?.base64 || null,
+          fileExt: fileDataRef.current?.ext || 'xlsx',
         }),
       })
       const data = await res.json()
