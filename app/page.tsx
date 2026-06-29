@@ -84,14 +84,34 @@ export default function Home() {
           storagePath: (datasetSummary as DatasetSummary & { storagePath?: string })?.storagePath || null,
         }),
       })
-      const data = await res.json()
-      const execution: RExecutionResult = data.execution || { success: false, rawOutput: '', errorMessage: data.error || 'Execution failed', executionTimeMs: 0, rScript }
-      const result: AnalysisResult = { plan, rScript, execution, aiInterpretation: data.interpretation || '', completedAt: new Date().toISOString() }
-      setAnalysisResult(result)
+      let data: Record<string, unknown>
+      try {
+        data = await res.json()
+      } catch (jsonErr) {
+        setErrorMessage('Server returned invalid response. Please try again.')
+        setStep('error')
+        return
+      }
+      const execData = data.execution as RExecutionResult | undefined
+      const rawOutput = String((execData?.rawOutput) || '').replace(/\0/g, '')
+      const errorMsg = String((execData?.errorMessage) || String(data.error || ''))
+      const execution: RExecutionResult = {
+        success: Boolean(execData?.success ?? false),
+        rawOutput,
+        errorMessage: errorMsg || null,
+        executionTimeMs: Number(execData?.executionTimeMs || 0),
+        rScript,
+      }
+      const interpretation = String(data.interpretation || '').replace(/\0/g, '')
+      const result: AnalysisResult = { plan, rScript, execution, aiInterpretation: interpretation, completedAt: new Date().toISOString() }
       setStep(execution.success ? 'complete' : 'error')
-      if (!execution.success) setErrorMessage(execution.errorMessage)
-      fetch('/api/usage').then(r => r.json()).then(data => { if (data.success) setUsage(data) }).catch(() => {})
-    } catch { setErrorMessage('Network error during R execution.'); setStep('error') }
+      if (!execution.success) setErrorMessage(errorMsg || 'R execution failed')
+      setAnalysisResult(result)
+      fetch('/api/usage').then(r => r.json()).then(d => { if (d.success) setUsage(d) }).catch(() => {})
+    } catch (err) {
+      setErrorMessage('Network error: ' + String(err))
+      setStep('error')
+    }
   }
 
   async function handleSignOut() { await supabase.auth.signOut(); window.location.href = '/login' }
