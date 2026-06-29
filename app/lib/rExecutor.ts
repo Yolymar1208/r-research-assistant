@@ -1,4 +1,3 @@
-import * as fs from 'fs'
 import type { RExecutionResult } from '@/app/types'
 
 const R_API_URL = process.env.R_API_URL?.replace(/\/$/, '')
@@ -19,6 +18,7 @@ export async function wakeRApi(): Promise<boolean> {
 
 async function executeViaAPI(rScript: string, excelFilePath: string): Promise<RExecutionResult> {
   const startTime = Date.now()
+  const fs = await import('fs')
 
   let excelData = ''
   let fileName = ''
@@ -76,6 +76,7 @@ async function executeViaAPI(rScript: string, excelFilePath: string): Promise<RE
 function executeLocally(rScript: string, excelFilePath: string): RExecutionResult {
   const startTime = Date.now()
   try {
+    const fs = require('fs')
     const { execSync } = require('child_process')
     const tmp = require('os').tmpdir()
     const path = require('path')
@@ -86,7 +87,7 @@ function executeLocally(rScript: string, excelFilePath: string): RExecutionResul
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
     })
-    fs.unlinkSync(scriptPath)
+    require('fs').unlinkSync(scriptPath)
     return {
       success: true,
       rawOutput: output,
