@@ -185,7 +185,18 @@ export default function Home() {
           </section>
         )}
 
-        {analysisResult && <section><h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2><AnalysisResults result={analysisResult} /></section>}
+        {analysisResult && (
+          <section>
+            <h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2>
+            <div style={{ padding: '16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+              <p>Success: {String(analysisResult.execution.success)}</p>
+              <p>Test: {analysisResult.plan.selectedTest}</p>
+              <p>Time: {analysisResult.execution.executionTimeMs}ms</p>
+              <p>Output length: {(analysisResult.execution.rawOutput || '').length} chars</p>
+              <p>Interpretation length: {(analysisResult.aiInterpretation || '').length} chars</p>
+            </div>
+          </section>
+        )}
 
         {step === 'error' && !analysisResult && errorMessage && (
           <section className="bg-red-50 border border-red-200 rounded-lg p-4">
