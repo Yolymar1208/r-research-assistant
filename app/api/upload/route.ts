@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as fs from 'fs'
-import * as path from 'path'
-import * as os from 'os'
 import { inspectDataset } from '@/app/lib/datasetInspector'
 import { uploadDatasetToStorage } from '@/app/lib/fileStorage'
 import { createServerClient } from '@supabase/ssr'
@@ -50,6 +47,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
     const buffer = Buffer.from(arrayBuffer)
 
     // Save to temp for immediate inspection
+    const fs = await import('fs')
+    const path = await import('path')
+    const os = await import('os')
     const tempDir = path.join(os.tmpdir(), 'r-research-assistant')
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
     const sessionId = `upload_${Date.now()}`
