@@ -71,21 +71,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       if (signedUrl) {
         const ext = storagePath.split('.').pop() || 'xlsx'
         const tempPath = `/tmp/joanresearch_${Date.now()}.${ext}`
-        // Prepend download code — runs before anything else in the script
-        const downloadLines = [
-          '# === DOWNLOAD DATASET FROM SECURE STORAGE ===',
-          `temp_dataset_path <- "${tempPath}"`,
-          `download.file("${signedUrl}", temp_dataset_path, mode="wb", quiet=TRUE)`,
-          `file_path <- temp_dataset_path`,
-          '',
-        ].join('\n')
-        // Replace the file_path line in the script
-        finalScript = rScript.replace(/^file_path\s*<-\s*["'][^"']*["']\s*$/m, `file_path <- temp_dataset_path`)
-        finalScript = downloadLines + finalScript
-        console.log('[Execute-R] Injected download.file() from Supabase Storage signed URL')
+        const downloadBlock = `# === DOWNLOAD DATASET FROM SECURE STORAGE ===\ntemp_dataset_path <- "${tempPath}"\ndownload.file("${signedUrl}", temp_dataset_path, mode="wb", quiet=TRUE)\nfile_path <- temp_dataset_path\n`
+        // Remove the original file_path line entirely, then prepend download block
+        finalScript = downloadBlock + rScript.replace(/^file_path\s*<-\s*["'][^"']*["']\s*\n?/m, '')
+        console.log('[Execute-R] Injected download.file() — storagePath:', storagePath)
       } else {
         console.warn('[Execute-R] Could not generate signed URL for:', storagePath)
+        return NextResponse.json({ success: false, error: 'Could not access dataset. Please re-upload the file.' }, { status: 400 })
       }
+    } else {
+      console.warn('[Execute-R] No storagePath — file will not be found on Render')
+      return NextResponse.json({ success: false, error: 'Dataset reference missing. Please re-upload the file and try again.' }, { status: 400 })
     }
 
     if (process.env.R_API_URL) {
