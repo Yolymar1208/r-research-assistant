@@ -35,6 +35,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
 
     if (!file) return NextResponse.json({ success: false, error: 'No file provided.' }, { status: 400 })
 
+    // Import Node.js modules at the top of the function
+    const fs = await import('fs')
+    const path = await import('path')
+    const os = await import('os')
+
     const ext = path.extname(file.name).toLowerCase()
     if (!['.xlsx', '.xls'].includes(ext)) {
       return NextResponse.json({ success: false, error: 'Only Excel files (.xlsx or .xls) are supported.' }, { status: 400 })
@@ -47,9 +52,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
     const buffer = Buffer.from(arrayBuffer)
 
     // Save to temp for immediate inspection
-    const fs = await import('fs')
-    const path = await import('path')
-    const os = await import('os')
     const tempDir = path.join(os.tmpdir(), 'r-research-assistant')
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
     const sessionId = `upload_${Date.now()}`
