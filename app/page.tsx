@@ -92,7 +92,7 @@ export default function Home() {
   async function handleSignOut() { await supabase.auth.signOut(); window.location.href = '/login' }
   function reset() {
     setStep('upload'); setDatasetSummary(null); setResearchQuestion(''); setHypothesis('')
-    setAnalysisResult(null); setErrorMessage(null); fileB64Ref.current = null
+    setAnalysisResult(null); setErrorMessage(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
