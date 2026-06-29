@@ -5,7 +5,6 @@ import { createClient } from '@/app/lib/supabase'
 import type { AppStep, DatasetSummary, AnalysisPlan, RExecutionResult, AnalysisResult } from '@/app/types'
 import DatasetSummaryPanel from '@/app/components/DatasetSummaryPanel'
 import StatusIndicator from '@/app/components/StatusIndicator'
-import AnalysisResults from '@/app/components/AnalysisResults'
 
 const supabase = createClient()
 
@@ -192,7 +191,31 @@ export default function Home() {
           </section>
         )}
 
-        {analysisResult && <section><h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2><AnalysisResults result={analysisResult} /></section>}
+        {analysisResult && (
+          <section>
+            <h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2>
+            <div style={{ padding: '16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+              <p style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
+                ✓ {analysisResult.execution.success ? 'Analysis Complete' : 'Execution Failed'}
+              </p>
+              <p style={{ fontSize: '12px', color: '#666' }}>
+                Test: {analysisResult.plan.selectedTest} · Time: {analysisResult.execution.executionTimeMs}ms
+              </p>
+              <details style={{ marginTop: '16px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>R Output ({(analysisResult.execution.rawOutput || '').length} chars)</summary>
+                <pre style={{ fontSize: '11px', background: '#1f2937', color: '#f3f4f6', padding: '12px', marginTop: '8px', borderRadius: '4px', whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto' }}>
+                  {analysisResult.execution.rawOutput || '(no output)'}
+                </pre>
+              </details>
+              <details style={{ marginTop: '8px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>AI Interpretation ({(analysisResult.aiInterpretation || '').length} chars)</summary>
+                <pre style={{ fontSize: '13px', whiteSpace: 'pre-wrap', fontFamily: 'system-ui', padding: '12px', marginTop: '8px', maxHeight: '400px', overflow: 'auto' }}>
+                  {analysisResult.aiInterpretation || '(no interpretation)'}
+                </pre>
+              </details>
+            </div>
+          </section>
+        )}
 
         {step === 'error' && !analysisResult && errorMessage && (
           <section className={errorMessage.startsWith('FREE_LIMIT:') ? 'bg-amber-50 border border-amber-200 rounded-lg p-4' : 'bg-red-50 border border-red-200 rounded-lg p-4'}>
