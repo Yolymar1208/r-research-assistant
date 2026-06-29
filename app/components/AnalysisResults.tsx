@@ -250,23 +250,9 @@ export default function AnalysisResults({ result }: Props) {
         {activeTab === 'interpretation' && (
           <div>
             {result.aiInterpretation ? (
-              <div className="prose prose-sm max-w-none text-gray-800">
-                {result.aiInterpretation.split('\n').map((line, i) => {
-                  if (line.startsWith('**') && line.endsWith('**')) {
-                    return (
-                      <h3 key={i} className="font-semibold text-gray-900 mt-4 mb-1 first:mt-0">
-                        {line.replace(/\*\*/g, '')}
-                      </h3>
-                    )
-                  }
-                  if (line.trim() === '') return <br key={i} />
-                  return (
-                    <p key={i} className="text-sm text-gray-700 mb-1">
-                      {line.replace(/\*\*([^*]+)\*\*/g, '$1')}
-                    </p>
-                  )
-                })}
-              </div>
+              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
+                {result.aiInterpretation}
+              </pre>
             ) : (
               <p className="text-sm text-gray-500 italic">
                 No interpretation available. Check the Raw R Output tab.
