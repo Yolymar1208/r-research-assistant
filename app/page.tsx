@@ -209,16 +209,7 @@ export default function Home() {
         {analysisResult && (
           <section>
             <h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2>
-            <div style={{ padding: '16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-              <p><strong>Success:</strong> {String(analysisResult.execution.success)}</p>
-              <p><strong>Test:</strong> {analysisResult.plan.selectedTest} · {analysisResult.execution.executionTimeMs}ms</p>
-              <details open style={{ marginTop: '12px' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 600 }}>R Output ({(analysisResult.execution.rawOutput || '').length} chars)</summary>
-                <pre style={{ fontSize: '11px', background: '#1f2937', color: '#f3f4f6', padding: '12px', marginTop: '8px', borderRadius: '4px', whiteSpace: 'pre-wrap', maxHeight: '400px', overflow: 'auto' }}>
-                  {analysisResult.execution.rawOutput || '(no output)'}
-                </pre>
-              </details>
-            </div>
+            <AnalysisResults result={analysisResult} />
           </section>
         )}
 
