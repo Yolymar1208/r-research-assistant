@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/app/lib/supabase'
 
 const supabase = createClient()
@@ -20,6 +20,21 @@ const TEST_LABELS: Record<string, string> = {
   mcnemar: "McNemar's",
   logistic_regression: 'Logistic Regression',
   linear_regression: 'Linear Regression',
+  epidemic_curve: 'Epidemic Curve',
+  attack_rate_table: 'Attack Rate Table',
+  age_sex_pyramid: 'Age-Sex Pyramid',
+  survival_analysis: 'Survival Analysis',
+  moving_average: 'Moving Average (7-day)',
+}
+
+const TEST_GROUPS: Record<string, string> = {
+  descriptive_statistics: 'Parametric', independent_t_test: 'Parametric', paired_t_test: 'Parametric',
+  one_way_anova: 'Parametric', chi_square: 'Parametric', pearson_correlation: 'Parametric',
+  mann_whitney: 'Non-Parametric', wilcoxon_signed_rank: 'Non-Parametric', kruskal_wallis: 'Non-Parametric',
+  spearman_correlation: 'Non-Parametric', fishers_exact: 'Non-Parametric', mcnemar: 'Non-Parametric',
+  logistic_regression: 'Regression', linear_regression: 'Regression',
+  epidemic_curve: 'Epidemiology', attack_rate_table: 'Epidemiology', age_sex_pyramid: 'Epidemiology',
+  survival_analysis: 'Epidemiology', moving_average: 'Epidemiology',
 }
 
 interface HistoryRecord {
@@ -34,12 +49,19 @@ interface HistoryRecord {
   raw_output: string
 }
 
+type StatusFilter = 'all' | 'success' | 'failed'
+
 export default function HistoryPage() {
   const [history, setHistory] = useState<HistoryRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<Record<string, string>>({})
   const [userEmail, setUserEmail] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [groupFilter, setGroupFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [generatingReportId, setGeneratingReportId] = useState<string | null>(null)
+  const [reportErrorId, setReportErrorId] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -54,6 +76,25 @@ export default function HistoryPage() {
       .catch(() => setLoading(false))
   }, [])
 
+  const availableGroups = useMemo(() => {
+    const groups = new Set(history.map(h => TEST_GROUPS[h.selected_test] || 'Other'))
+    return Array.from(groups).sort()
+  }, [history])
+
+  const filteredHistory = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return history.filter((record) => {
+      if (statusFilter === 'success' && !record.execution_success) return false
+      if (statusFilter === 'failed' && record.execution_success) return false
+      if (groupFilter !== 'all' && (TEST_GROUPS[record.selected_test] || 'Other') !== groupFilter) return false
+      if (q) {
+        const haystack = `${record.research_question} ${record.dataset_name} ${TEST_LABELS[record.selected_test] || record.selected_test}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [history, searchQuery, groupFilter, statusFilter])
+
   function downloadRScript(record: HistoryRecord) {
     const blob = new Blob([record.r_script], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -64,6 +105,69 @@ export default function HistoryPage() {
     URL.revokeObjectURL(url)
   }
 
+  function downloadRawOutput(record: HistoryRecord) {
+    const blob = new Blob([record.raw_output || '(no output)'], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `r_output_${record.id.slice(0, 8)}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Reconstructs a best-effort report from what's actually persisted in
+  // analysis_history. Fields not stored at save time (hypothesis, variable
+  // names, rationale) are sent empty rather than invented — the PDF skill
+  // / report generator is expected to omit blank fields gracefully.
+  async function downloadPDFReport(record: HistoryRecord) {
+    setGeneratingReportId(record.id)
+    setReportErrorId(null)
+    try {
+      const result = {
+        plan: {
+          researchQuestion: record.research_question,
+          hypothesis: '',
+          dependentVariable: null,
+          independentVariable: null,
+          additionalVariables: [],
+          selectedTest: record.selected_test,
+          testRationale: '',
+          assumptions: [],
+          followUpQuestions: [],
+          planSummary: '',
+        },
+        rScript: record.r_script,
+        execution: {
+          success: record.execution_success,
+          rawOutput: record.raw_output,
+          errorMessage: null,
+          executionTimeMs: 0,
+          rScript: record.r_script,
+        },
+        aiInterpretation: record.ai_interpretation,
+        completedAt: record.created_at,
+      }
+      const res = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, datasetName: record.dataset_name }),
+      })
+      if (!res.ok) throw new Error('Report generation failed')
+      const html = await res.text()
+      const win = window.open('', '_blank')
+      if (win) {
+        win.document.write(html)
+        win.document.close()
+        win.focus()
+        setTimeout(() => win.print(), 800)
+      }
+    } catch {
+      setReportErrorId(record.id)
+    } finally {
+      setGeneratingReportId(null)
+    }
+  }
+
   function getTab(id: string): string {
     return activeTab[id] || 'interpretation'
   }
@@ -71,6 +175,8 @@ export default function HistoryPage() {
   function setTab(id: string, tab: string) {
     setActiveTab(prev => ({ ...prev, [id]: tab }))
   }
+
+  const hasActiveFilters = searchQuery.trim() !== '' || groupFilter !== 'all' || statusFilter !== 'all'
 
   return (
     <main style={{ minHeight: '100vh', background: '#f0f4f8', fontFamily: 'system-ui, sans-serif' }}>
@@ -92,6 +198,43 @@ export default function HistoryPage() {
 
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 2rem' }}>
 
+        {!loading && history.length > 0 && (
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by question, dataset, or test…"
+              style={{ flex: '1 1 220px', minWidth: '180px', fontSize: '13px', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#1a1a1a', outline: 'none' }}
+            />
+            <select
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              style={{ fontSize: '13px', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#444', background: '#fff' }}
+            >
+              <option value="all">All test types</option>
+              {availableGroups.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+              style={{ fontSize: '13px', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#444', background: '#fff' }}
+            >
+              <option value="all">All results</option>
+              <option value="success">Successful only</option>
+              <option value="failed">Failed only</option>
+            </select>
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setSearchQuery(''); setGroupFilter('all'); setStatusFilter('all') }}
+                style={{ fontSize: '12px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>Loading your analysis history…</div>
         ) : history.length === 0 ? (
@@ -103,11 +246,25 @@ export default function HistoryPage() {
               Start an analysis
             </a>
           </div>
+        ) : filteredHistory.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>No analyses match your current filters.</p>
+            <button
+              onClick={() => { setSearchQuery(''); setGroupFilter('all'); setStatusFilter('all') }}
+              style={{ fontSize: '13px', color: '#2e75b6', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <p style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>{history.length} analyses — last 50 shown</p>
+            <p style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>
+              {hasActiveFilters
+                ? `${filteredHistory.length} of ${history.length} analyses match your filters`
+                : `${history.length} analyses — last 50 shown`}
+            </p>
 
-            {history.map((record) => (
+            {filteredHistory.map((record) => (
               <div key={record.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
 
                 {/* Record header */}
@@ -145,9 +302,28 @@ export default function HistoryPage() {
                     >
                       ↓ .R
                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadRawOutput(record) }}
+                      style={{ fontSize: '12px', color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      ↓ Output
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadPDFReport(record) }}
+                      disabled={generatingReportId === record.id}
+                      style={{ fontSize: '12px', color: '#fff', background: '#1a3a5c', border: '1px solid #1a3a5c', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, opacity: generatingReportId === record.id ? 0.6 : 1 }}
+                    >
+                      {generatingReportId === record.id ? '…' : '↓ PDF'}
+                    </button>
                     <span style={{ fontSize: '18px', color: '#888' }}>{expanded === record.id ? '▲' : '▼'}</span>
                   </div>
                 </div>
+
+                {reportErrorId === record.id && (
+                  <div style={{ padding: '0 20px 12px', fontSize: '12px', color: '#b45309' }}>
+                    Couldn't regenerate the PDF for this older analysis — some plan details weren't saved at the time. The R Script and Output downloads above always work.
+                  </div>
+                )}
 
                 {/* Expanded content */}
                 {expanded === record.id && (
