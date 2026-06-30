@@ -153,14 +153,14 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">JOANResearchOS</h1>
-            <p className="text-xs text-gray-500 mt-0.5">Statistical analysis powered by R · AI generates code, R computes results</p>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">JOANResearchOS</h1>
+            <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Statistical analysis powered by R · AI generates code, R computes results</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {usage && usage.plan === 'free' && (
-              <div className="hidden sm:flex items-center gap-2" title={`${usage.currentCount} of ${usage.limit} free analyses used this month`}>
+              <div className="hidden md:flex items-center gap-2" title={`${usage.currentCount} of ${usage.limit} free analyses used this month`}>
                 <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full ${usage.remaining <= 1 ? 'bg-amber-500' : 'bg-blue-500'}`}
@@ -173,17 +173,17 @@ export default function Home() {
               </div>
             )}
             {usage && usage.plan !== 'free' && (
-              <span className="hidden sm:inline-block text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full capitalize">
+              <span className="hidden md:inline-block text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full capitalize">
                 {usage.plan} plan · Unlimited
               </span>
             )}
-            {datasetSummary && <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50">Start Over</button>}
-            <a href="/history" className="text-xs text-gray-600 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50">History</a>
-            <a href="/landing" className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-50">Pricing</a>
+            {datasetSummary && <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded hover:bg-gray-50 whitespace-nowrap">Start Over</button>}
+            <a href="/history" className="text-xs text-gray-600 hover:text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded hover:bg-gray-50 whitespace-nowrap">History</a>
+            <a href="/landing" className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded hover:bg-blue-50 whitespace-nowrap">Pricing</a>
             {userEmail && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 hidden sm:block">{userEmail}</span>
-                <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded hover:bg-red-50">Sign out</button>
+                <span className="text-xs text-gray-500 hidden lg:block max-w-[140px] truncate">{userEmail}</span>
+                <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-2.5 py-1.5 rounded hover:bg-red-50 whitespace-nowrap">Sign out</button>
               </div>
             )}
           </div>
