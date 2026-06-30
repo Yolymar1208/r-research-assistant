@@ -71,6 +71,32 @@ export default function AnalysisResults({ result }: Props) {
     }
   }
 
+  const EPI_TESTS = ['epidemic_curve', 'attack_rate_table', 'age_sex_pyramid', 'survival_analysis', 'moving_average']
+  const isEpiTest = EPI_TESTS.includes(result.plan.selectedTest)
+
+  async function downloadQGISExport() {
+    try {
+      const res = await fetch('/api/generate-qgis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: result.plan,
+          rawOutput: result.execution.rawOutput,
+          datasetName: 'Dataset',
+        }),
+      })
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `QGIS_${result.plan.selectedTest}_${Date.now()}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('QGIS export failed:', err)
+    }
+  }
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between ${result.execution.success ? 'bg-green-50' : 'bg-red-50'}`}>
@@ -85,6 +111,9 @@ export default function AnalysisResults({ result }: Props) {
         <div className="flex gap-2">
           <button onClick={downloadRScript} className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium">↓ analysis.R</button>
           <button onClick={downloadPDFReport} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium">↓ PDF Report</button>
+          {isEpiTest && (
+            <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium">↓ QGIS CSV</button>
+          )}
         </div>
       </div>
 
