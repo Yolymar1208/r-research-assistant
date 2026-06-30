@@ -28,6 +28,16 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   } catch { return null }
 }
 
+// Fire-and-forget ping to the R API so Render starts waking up the instant a
+// file is uploaded, instead of only when the user clicks Generate Analysis.
+// By the time they've typed a research question, Render has had a head start.
+function warmUpRApi() {
+  if (!process.env.R_API_URL) return
+  fetch(`${process.env.R_API_URL}/health`, { method: 'GET' }).catch(() => {
+    // Intentionally ignored — this is a best-effort warm-up, not a required step.
+  })
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<UploadResponse>> {
   try {
     const formData = await request.formData()
@@ -47,6 +57,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
     if (file.size > 50 * 1024 * 1024) {
       return NextResponse.json({ success: false, error: 'File too large. Maximum size is 50MB.' }, { status: 400 })
     }
+    if (file.size === 0) {
+      return NextResponse.json({ success: false, error: 'This file is empty (0 bytes). Please check the file and try again.' }, { status: 400 })
+    }
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
@@ -62,8 +75,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<UploadRes
     const userId = await getUserId(request)
     const { storagePath } = await uploadDatasetToStorage(buffer, file.name, userId, sessionId)
 
-    // Inspect dataset
-    const summary = inspectDataset(buffer, file.name, tempFilePath)
+    // Inspect dataset — throws a clear error for empty/corrupt/unreadable files
+    let summary
+    try {
+      summary = inspectDataset(buffer, file.name, tempFilePath)
+    } catch (inspectErr: unknown) {
+      const msg = inspectErr instanceof Error ? inspectErr.message : 'Could not read this file.'
+      return NextResponse.json({ success: false, error: msg }, { status: 400 })
+    }
+
+    if (summary.columnCount < 2) {
+      return NextResponse.json({ success: false, error: 'This file only has one usable column. Most statistical tests need at least two variables to compare.' }, { status: 400 })
+    }
+
+    // Best-effort: start waking the R API now, in parallel with the user
+    // reading the dataset summary and typing their research question.
+    warmUpRApi()
 
     const summaryWithStorage = {
       ...summary,
