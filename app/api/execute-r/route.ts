@@ -53,6 +53,16 @@ interface ExecuteResponse {
   error?: string
 }
 
+// Heuristics for "this probably failed because Render was asleep/cold", as
+// opposed to "the R script itself has a real error". Network-layer failures
+// and empty output on the first attempt are the telltale signs of a cold start.
+function looksLikeColdStartFailure(execution: RExecutionResult): boolean {
+  const msg = (execution.errorMessage || '').toLowerCase()
+  const emptyOutput = !execution.rawOutput || execution.rawOutput.trim().length === 0
+  const networkish = ['timeout', 'econnrefused', 'fetch failed', 'socket hang up', 'network', '502', '503', '504'].some(s => msg.includes(s))
+  return networkish || (emptyOutput && !execution.success)
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<ExecuteResponse>> {
   try {
     const ip = getClientIP(request)
@@ -64,7 +74,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       return NextResponse.json({ success: false, error: 'R script is required.' }, { status: 400 })
     }
 
-    // Get a fresh signed URL from Supabase Storage and inject into R script
+    // Get a fresh signed URL from Supabase Storage and inject into R script.
+    // Note: this is regenerated on every execute call, so there is no expiry
+    // risk even if the user sits on the question screen for hours — only the
+    // dataset's presence in Storage matters, not the age of any prior URL.
     let finalScript = rScript
     if (storagePath) {
       const signedUrl = await getSignedUrl(storagePath)
@@ -72,12 +85,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
         const ext = storagePath.split('.').pop() || 'xlsx'
         const tempPath = `/tmp/joanresearch_${Date.now()}.${ext}`
         const downloadBlock = `# === DOWNLOAD DATASET FROM SECURE STORAGE ===\ntemp_dataset_path <- "${tempPath}"\ndownload.file("${signedUrl}", temp_dataset_path, mode="wb", quiet=TRUE)\nfile_path <- temp_dataset_path\n`
-        // Remove the original file_path line entirely, then prepend download block
         finalScript = downloadBlock + rScript.replace(/^file_path\s*<-\s*["'][^"']*["']\s*\n?/m, '')
         console.log('[Execute-R] Injected download.file() — storagePath:', storagePath)
       } else {
         console.warn('[Execute-R] Could not generate signed URL for:', storagePath)
-        return NextResponse.json({ success: false, error: 'Could not access dataset. Please re-upload the file.' }, { status: 400 })
+        return NextResponse.json({ success: false, error: 'Could not access your dataset in storage. Please re-upload the file and try again.' }, { status: 400 })
       }
     } else {
       console.warn('[Execute-R] No storagePath — file will not be found on Render')
@@ -89,13 +101,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       await wakeRApi()
     }
 
-    console.log('[Execute-R API] Running R script...')
-    const execution = await executeRScript(finalScript, excelFilePath || '')
+    console.log('[Execute-R API] Running R script (attempt 1)...')
+    let execution = await executeRScript(finalScript, excelFilePath || '')
+
+    // Render free tier can still be mid-wake even after wakeRApi() resolves.
+    // If the first attempt looks like a cold-start failure rather than a real
+    // script error, wake again and retry exactly once before giving up.
+    if (!execution.success && looksLikeColdStartFailure(execution)) {
+      console.log('[Execute-R API] First attempt looked like a cold start — retrying once...')
+      if (process.env.R_API_URL) await wakeRApi()
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+      execution = await executeRScript(finalScript, excelFilePath || '')
+    }
 
     if (!execution.success) {
       console.error('[Execute-R] R failed. Output:', execution.rawOutput?.slice(0, 500))
       console.error('[Execute-R] Error:', execution.errorMessage)
-      return NextResponse.json({ success: false, execution, error: String(execution.errorMessage || 'R execution failed.') })
+      const friendlyError = looksLikeColdStartFailure(execution)
+        ? 'The analysis engine is taking longer than usual to respond. This can happen during periods of low traffic. Please try again in about 30 seconds.'
+        : String(execution.errorMessage || 'R execution failed. Check the Raw R Output tab for details.')
+      return NextResponse.json({ success: false, execution, error: friendlyError })
     }
 
     console.log('[Execute-R API] Interpreting R output...')
