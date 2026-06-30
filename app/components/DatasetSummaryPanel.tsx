@@ -2,8 +2,12 @@
 
 import type { DatasetSummary } from '@/app/types'
 
+// warnings is optional and may not be present on summaries from older sessions
+// or other call sites — same pattern as storagePath elsewhere in the codebase.
+type SummaryWithWarnings = DatasetSummary & { warnings?: string[] }
+
 interface Props {
-  summary: DatasetSummary
+  summary: SummaryWithWarnings
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -16,6 +20,8 @@ const TYPE_COLORS: Record<string, string> = {
 }
 
 export default function DatasetSummaryPanel({ summary }: Props) {
+  const warnings = summary.warnings ?? []
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Header stats */}
@@ -31,6 +37,26 @@ export default function DatasetSummaryPanel({ summary }: Props) {
           <span className="text-gray-400">{summary.fileName}</span>
         </div>
       </div>
+
+      {/* Data quality warnings — non-blocking, but the user should see these
+          before spending an analysis credit on a doomed dataset. */}
+      {warnings.length > 0 && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+          <div className="flex items-start gap-2">
+            <span className="text-amber-500 mt-0.5">⚠</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-amber-800 mb-1">
+                {warnings.length === 1 ? 'Data quality note' : `${warnings.length} data quality notes`}
+              </p>
+              <ul className="space-y-1">
+                {warnings.map((w, i) => (
+                  <li key={i} className="text-xs text-amber-700 leading-relaxed">{w}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Column table */}
       <div className="overflow-x-auto">
@@ -65,7 +91,7 @@ export default function DatasetSummaryPanel({ summary }: Props) {
                 </td>
                 <td className="px-4 py-2 text-right text-gray-600">
                   {col.missingCount > 0 ? (
-                    <span className="text-amber-600 font-medium">
+                    <span className={`font-medium ${col.missingPercent >= 50 ? 'text-red-600' : 'text-amber-600'}`}>
                       {col.missingCount} ({col.missingPercent}%)
                     </span>
                   ) : (
