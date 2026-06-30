@@ -53,9 +53,29 @@ function detectSkipRows(sheet: XLSX.WorkSheet): number {
   return bestRow
 }
 
+// ─── Duplicate Header Detection ────────────────────────────────────────────────
+// sheet_to_json keys rows by header name. Duplicate headers silently overwrite
+// each other (only the last column with that name survives), corrupting data
+// with no error. We detect this here and rename duplicates so nothing is lost,
+// then surface a warning so the user knows their file had a naming collision.
+
+function dedupeHeaders(rawHeaders: string[]): { headers: string[]; warnings: string[] } {
+  const seen = new Map<string, number>()
+  const warnings: string[] = []
+  const headers = rawHeaders.map((h) => {
+    const key = (h ?? '').toString().trim() || '(unnamed column)'
+    const count = seen.get(key) ?? 0
+    seen.set(key, count + 1)
+    if (count === 0) return key
+    warnings.push(`Column "${key}" appeared more than once in your file — duplicates were renamed to "${key} (${count + 1})" so no data was lost. Please verify this is intentional.`)
+    return `${key} (${count + 1})`
+  })
+  return { headers, warnings }
+}
+
 // ─── Extended DatasetSummary ───────────────────────────────────────────────────
 
-export type DatasetSummaryWithMeta = DatasetSummary & { skipRows: number }
+export type DatasetSummaryWithMeta = DatasetSummary & { skipRows: number; warnings: string[] }
 
 // ─── Main Inspection Function ──────────────────────────────────────────────────
 
@@ -71,38 +91,72 @@ export function inspectDataset(
   // Find the real header row
   const skipRows = detectSkipRows(sheet)
 
-  // Read from the real header row onward
-  const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+  // Read raw header row first so we can detect/dedupe duplicate column names
+  // before sheet_to_json silently collapses them.
+  const headerRowRaw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: false,
+    range: skipRows,
+  })[0] as unknown[] | undefined
+
+  const warnings: string[] = []
+
+  if (!headerRowRaw || headerRowRaw.length === 0) {
+    throw new Error('The uploaded file appears to be empty or has no readable header row.')
+  }
+
+  const { headers: dedupedHeaders, warnings: headerWarnings } = dedupeHeaders(
+    headerRowRaw.map((h) => String(h ?? ''))
+  )
+  warnings.push(...headerWarnings)
+
+  // Read data rows using array form, then map to deduped headers ourselves —
+  // this avoids relying on sheet_to_json's object-key collision behavior.
+  const allRowsArray = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
     defval: null,
     raw: true,
-    range: skipRows,
+    range: skipRows + 1,
   })
 
-  if (rawData.length === 0) {
+  if (allRowsArray.length === 0) {
     throw new Error('The uploaded file appears to be empty or has no readable data.')
   }
 
-  const headers = Object.keys(rawData[0])
-  // rawData[0] is the header row itself when using range — actual data starts at index 1
-  // But sheet_to_json with range uses row as header, so rawData[0] is already first data row
-  const dataRows = rawData
+  const dataRows: Record<string, unknown>[] = allRowsArray.map((rowArr) => {
+    const row: Record<string, unknown> = {}
+    dedupedHeaders.forEach((h, i) => { row[h] = (rowArr as unknown[])[i] ?? null })
+    return row
+  })
+
+  const headers = dedupedHeaders
   const rowCount = dataRows.length
   const columnCount = headers.length
+
+  if (rowCount < 5) {
+    warnings.push(`This file only has ${rowCount} row${rowCount === 1 ? '' : 's'} of data. Most statistical tests need more observations to produce meaningful results.`)
+  }
 
   const columns: ColumnInfo[] = headers.map((header) => {
     const values = dataRows.map((row) => row[header])
     const missing = values.filter((v) => v === null || v === undefined || v === '').length
+    const missingPercent = Math.round((missing / Math.max(1, rowCount)) * 100 * 10) / 10
     const unique = new Set(values.filter((v) => v !== null && v !== undefined && v !== '')).size
     const sample = values
       .slice(0, 5)
       .map((v) => (v === null || v === undefined ? null : v as string | number))
+
+    if (missingPercent >= 50) {
+      warnings.push(`Column "${header}" is ${missingPercent}% empty — results involving this column may be unreliable.`)
+    }
 
     return {
       name: header,
       cleanName: toSnakeCase(header),
       detectedType: detectType(values),
       missingCount: missing,
-      missingPercent: Math.round((missing / Math.max(1, rowCount)) * 100 * 10) / 10,
+      missingPercent,
       uniqueCount: unique,
       sample,
     }
@@ -123,5 +177,6 @@ export function inspectDataset(
     uploadedAt: new Date().toISOString(),
     tempFilePath,
     skipRows,
+    warnings,
   }
 }
