@@ -334,6 +334,11 @@ export default function LandingPage() {
           <span style={{ color: '#fff', fontWeight: 700, fontSize: '15px' }}>JOANResearchOS</span>
         </div>
         <p style={{ color: '#4a6a85', fontSize: '13px', marginBottom: '8px' }}>Statistical Engine: R · AI: Claude by Anthropic · All calculations by R, never by AI</p>
+        <p style={{ color: '#4a6a85', fontSize: '12px', marginBottom: '8px' }}>
+          <a href="/privacy" style={{ color: '#4a6a85' }}>Privacy Policy</a> ·{' '}
+          <a href="/terms" style={{ color: '#4a6a85' }}>Terms of Service</a> ·{' '}
+          <a href="mailto:antetokounmpo8@gmail.com" style={{ color: '#4a6a85' }}>Contact</a>
+        </p>
         <p style={{ color: '#2a3a4a', fontSize: '12px' }}>© 2026 JOANResearchOS · Built for clinical and epidemiological research in the Philippines and beyond</p>
       </footer>
 
