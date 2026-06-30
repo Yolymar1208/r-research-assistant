@@ -375,26 +375,33 @@ Generate the complete script now. Pure R only.`
 }
 
 export function buildInterpretationPrompt(plan: AnalysisPlan, rScript: string, rawOutput: string): string {
-  return `You are a senior biostatistician interpreting R output for a clinical researcher.
+  const EPI_TESTS = ['epidemic_curve', 'attack_rate_table', 'age_sex_pyramid', 'survival_analysis', 'moving_average']
+  const isEpiTest = EPI_TESTS.includes(plan.selectedTest)
 
-RULES:
-- Base interpretation ENTIRELY on the R output below
-- Never fabricate or estimate values
-- Use plain language a nurse, doctor, or epidemiologist can understand
-- If output shows errors, say so clearly
+  const sections = isEpiTest
+    ? `Write using the standard WHO/FETP/DOH outbreak investigation format:
 
-RESEARCH QUESTION: ${plan.researchQuestion}
-NULL HYPOTHESIS: ${plan.hypothesis}
-TEST: ${plan.selectedTest}
-DEPENDENT: ${plan.dependentVariable || 'N/A'}
-INDEPENDENT: ${plan.independentVariable || 'N/A'}
+**1. Summary of Findings**
+2-3 sentences. State the key epidemiological finding and what it means for outbreak response.
 
-R OUTPUT:
----
-${rawOutput}
----
+**2. Results by Time**
+Temporal distribution: when did the outbreak start, peak, and end? What does the curve shape suggest about mode of transmission (point source, propagated, or continuous)? Use exact dates and counts from R output only.
 
-Write using these five sections:
+**3. Results by Person**
+Who was affected? Age distribution, sex breakdown, attack rates by group, CFR, or survival times — whichever applies. Use exact values from R output only.
+
+**4. Results by Place**
+Note any geographic information present. If no place data was analyzed, state: "Place distribution was not assessed in this analysis. A spot map using barangay/municipality data is recommended."
+
+**5. Statistical Results**
+Report exact values: test statistic, p-value, confidence intervals, risk ratios, odds ratios, effect sizes. Use a table where appropriate.
+
+**6. Recommendations**
+3-5 concrete, actionable public health recommendations. Number them. Follow FETP categories: (1) immediate control measures, (2) surveillance enhancement, (3) further investigation, (4) prevention.
+
+**7. Limitations**
+3-5 specific limitations: sample size, potential biases, missing data, confounders, R output warnings. Flag warnings with ⚠️.`
+    : `Write using these five sections:
 
 **1. Summary of Findings**
 2-3 sentences. State whether significant or not.
@@ -409,7 +416,28 @@ What do these results mean in practice?
 Were assumptions met based on R output?
 
 **5. Limitations and Next Steps**
-Sample size, confounders, follow-up analyses.
+Sample size, confounders, follow-up analyses.`
 
-Do not invent any numbers.`
+  return `You are a senior field epidemiologist interpreting R statistical output for a public health report.
+
+STRICT RULES:
+- Base interpretation ENTIRELY on the R output below — never fabricate or estimate values
+- If a value is not in the R output, state it was not computed — do not invent it
+- Use plain language suitable for DOH, WHO, or ethics board reporting
+- Flag convergence warnings or violated assumptions with ⚠️
+
+RESEARCH QUESTION: ${plan.researchQuestion}
+NULL HYPOTHESIS: ${plan.hypothesis}
+TEST: ${plan.selectedTest}
+DEPENDENT: ${plan.dependentVariable || 'N/A'}
+INDEPENDENT: ${plan.independentVariable || 'N/A'}
+
+R OUTPUT:
+---
+${rawOutput}
+---
+
+${sections}
+
+Do not invent any numbers. All values must come directly from the R output above.`
 }
