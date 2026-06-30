@@ -28,12 +28,13 @@ function getStepIndex(step: AppStep): number {
 export default function StatusIndicator({ step, errorMessage }: Props) {
   const currentIndex = getStepIndex(step)
   const isError = step === 'error'
+  const isBusy = step === 'analyzing' || step === 'executing' || step === 'interpreting'
 
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-sm font-semibold text-gray-700">Analysis Status</h2>
-        {(step === 'analyzing' || step === 'executing' || step === 'interpreting') && (
+        {isBusy && (
           <span className="flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
@@ -91,15 +92,16 @@ export default function StatusIndicator({ step, errorMessage }: Props) {
         </div>
       )}
 
-      {/* Current status message */}
+      {/* Current status message — written to set accurate time expectations rather than
+          leaving the user guessing whether the app has frozen. */}
       <div className="mt-3 text-xs text-gray-500">
         {step === 'upload' && 'Waiting for file upload'}
         {step === 'inspect' && 'Dataset loaded — enter your research question below'}
         {step === 'question' && 'Ready to generate analysis'}
-        {step === 'analyzing' && 'AI is reading your dataset and selecting the appropriate test…'}
-        {step === 'executing' && 'R is running the statistical analysis…'}
-        {step === 'interpreting' && 'AI is interpreting the R output…'}
-        {step === 'complete' && 'Analysis complete — see results below'}
+        {step === 'analyzing' && 'AI is reading your dataset and selecting the appropriate test — usually 3–5 seconds.'}
+        {step === 'executing' && 'R is running the statistical analysis. If the server has been idle, it may take up to 20–30 seconds to wake up — this is normal, please keep this tab open.'}
+        {step === 'interpreting' && 'AI is writing a plain-language interpretation of the R output — usually 3–5 seconds.'}
+        {step === 'complete' && 'Analysis complete — see results below. All statistical values were computed by R.'}
         {step === 'error' && 'Check error details below'}
       </div>
     </div>
