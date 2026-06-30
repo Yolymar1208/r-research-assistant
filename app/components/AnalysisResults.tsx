@@ -141,27 +141,27 @@ export default function AnalysisResults({ result }: Props) {
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between ${result.execution.success ? 'bg-green-50' : 'bg-red-50'}`}>
-        <div className="flex items-center gap-2">
-          <span className={`text-sm font-medium ${result.execution.success ? 'text-green-800' : 'text-red-800'}`}>
+      <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3 flex-wrap ${result.execution.success ? 'bg-green-50' : 'bg-red-50'}`}>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className={`text-sm font-medium whitespace-nowrap ${result.execution.success ? 'text-green-800' : 'text-red-800'}`}>
             {result.execution.success ? '✓ Analysis Complete' : '✗ R Execution Failed'}
           </span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-gray-500 truncate">
             {TEST_LABELS[result.plan.selectedTest]} · {result.execution.executionTimeMs}ms
           </span>
         </div>
-        <div className="flex gap-2">
-          <button onClick={downloadRScript} className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium">↓ analysis.R</button>
-          <button onClick={downloadPDFReport} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium">↓ PDF Report</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={downloadRScript} className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium whitespace-nowrap">↓ analysis.R</button>
+          <button onClick={downloadPDFReport} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium whitespace-nowrap">↓ PDF Report</button>
           {isEpiTest && (
-            <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium">↓ QGIS CSV</button>
+            <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium whitespace-nowrap">↓ QGIS CSV</button>
           )}
         </div>
       </div>
 
       {/* Provenance strip — the single most important trust signal in the app.
           Always visible, regardless of which tab is active. */}
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center gap-4 text-xs text-gray-600">
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-gray-600">
         <span className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           Statistics computed and verified by R
@@ -172,7 +172,7 @@ export default function AnalysisResults({ result }: Props) {
         </span>
       </div>
 
-      <div className="flex border-b border-gray-200 bg-gray-50">
+      <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
         {tabs.map((tab) => {
           const s = SOURCE_STYLES[TAB_SOURCE[tab.key]]
           const isActive = activeTab === tab.key
@@ -180,11 +180,11 @@ export default function AnalysisResults({ result }: Props) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                 isActive ? `${s.activeBorder} ${s.activeText} bg-white` : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${isActive ? s.dot : 'bg-gray-300'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? s.dot : 'bg-gray-300'}`} />
               {tab.label}
             </button>
           )
