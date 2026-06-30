@@ -42,7 +42,7 @@ export default function GlobalError({
         </div>
         <p style={{ fontSize: '12px', color: '#999', marginTop: '24px' }}>
           If this keeps happening, email{' '}
-          <a href="mailto:antetokounmpo8@gmail.com" style={{ color: '#2e75b6' }}>antetokounmpo8@gmail.com</a> with the error reference above.
+          <a href="mailto:yolymarorfiano@yahoo.com" style={{ color: '#2e75b6' }}>yolymarorfiano@yahoo.com</a> with the error reference above.
         </p>
       </div>
     </main>
