@@ -262,7 +262,7 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-              <a href="mailto:antetokounmpo8@gmail.com?subject=JOANResearchOS Pro Plan Inquiry" style={{ display: 'block', textAlign: 'center', background: '#fff', color: '#1a3a5c', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700 }}>
+              <a href="mailto:yolymarorfiano@yahoo.com?subject=JOANResearchOS Pro Plan Inquiry" style={{ display: 'block', textAlign: 'center', background: '#fff', color: '#1a3a5c', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700 }}>
                 Get Pro — ₱999/mo
               </a>
             </div>
@@ -284,7 +284,7 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-              <a href="mailto:antetokounmpo8@gmail.com?subject=JOANResearchOS Institution Plan Inquiry" style={{ display: 'block', textAlign: 'center', background: '#1a3a5c', color: '#fff', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700 }}>
+              <a href="mailto:yolymarorfiano@yahoo.com?subject=JOANResearchOS Institution Plan Inquiry" style={{ display: 'block', textAlign: 'center', background: '#1a3a5c', color: '#fff', padding: '12px 24px', borderRadius: '10px', textDecoration: 'none', fontSize: '15px', fontWeight: 700 }}>
                 Contact us
               </a>
             </div>
@@ -337,7 +337,7 @@ export default function LandingPage() {
         <p style={{ color: '#4a6a85', fontSize: '12px', marginBottom: '8px' }}>
           <a href="/privacy" style={{ color: '#4a6a85' }}>Privacy Policy</a> ·{' '}
           <a href="/terms" style={{ color: '#4a6a85' }}>Terms of Service</a> ·{' '}
-          <a href="mailto:antetokounmpo8@gmail.com" style={{ color: '#4a6a85' }}>Contact</a>
+          <a href="mailto:yolymarorfiano@yahoo.com" style={{ color: '#4a6a85' }}>Contact</a>
         </p>
         <p style={{ color: '#2a3a4a', fontSize: '12px' }}>© 2026 JOANResearchOS · Built for clinical and epidemiological research in the Philippines and beyond</p>
       </footer>
