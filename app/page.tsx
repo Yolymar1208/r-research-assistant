@@ -313,7 +313,16 @@ export default function Home() {
       </div>
 
       <footer className="border-t border-gray-200 mt-16 py-6">
-        <p className="text-center text-xs text-gray-400">JOANResearchOS · Statistical Engine: R · AI generates code, R computes all statistical results</p>
+        <div className="max-w-4xl mx-auto px-6 flex flex-col items-center gap-2">
+          <p className="text-center text-xs text-gray-400">JOANResearchOS · Statistical Engine: R · AI generates code, R computes all statistical results</p>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <a href="/privacy" className="hover:text-gray-600">Privacy Policy</a>
+            <span>·</span>
+            <a href="/terms" className="hover:text-gray-600">Terms of Service</a>
+            <span>·</span>
+            <a href="mailto:antetokounmpo8@gmail.com" className="hover:text-gray-600">Contact</a>
+          </div>
+        </div>
       </footer>
     </main>
   )
