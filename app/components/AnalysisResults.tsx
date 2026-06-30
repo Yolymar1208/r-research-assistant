@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { AnalysisResult } from '@/app/types'
+import { downloadReportAsPdf } from '@/app/lib/pdfDownload'
 
 interface Props {
   result: AnalysisResult
@@ -73,6 +74,8 @@ export default function AnalysisResults({ result }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>(
     result.execution.success ? 'interpretation' : 'output'
   )
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [pdfError, setPdfError] = useState(false)
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'plan', label: 'Analysis Plan' },
@@ -92,22 +95,22 @@ export default function AnalysisResults({ result }: Props) {
   }
 
   async function downloadPDFReport() {
+    setIsGeneratingPdf(true)
+    setPdfError(false)
     try {
       const res = await fetch('/api/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result, datasetName: 'Dataset' }),
       })
+      if (!res.ok) throw new Error('Report generation failed')
       const html = await res.text()
-      const win = window.open('', '_blank')
-      if (win) {
-        win.document.write(html)
-        win.document.close()
-        win.focus()
-        setTimeout(() => win.print(), 800)
-      }
+      await downloadReportAsPdf(html, `JOANResearchOS_Report_${result.plan.selectedTest}_${Date.now()}.pdf`)
     } catch (err) {
-      console.error('Report generation failed:', err)
+      console.error('PDF download failed:', err)
+      setPdfError(true)
+    } finally {
+      setIsGeneratingPdf(false)
     }
   }
 
@@ -152,12 +155,19 @@ export default function AnalysisResults({ result }: Props) {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={downloadRScript} className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium whitespace-nowrap">↓ analysis.R</button>
-          <button onClick={downloadPDFReport} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium whitespace-nowrap">↓ PDF Report</button>
+          <button onClick={downloadPDFReport} disabled={isGeneratingPdf} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium whitespace-nowrap disabled:opacity-60">
+            {isGeneratingPdf ? 'Preparing PDF…' : '↓ PDF Report'}
+          </button>
           {isEpiTest && (
             <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium whitespace-nowrap">↓ QGIS CSV</button>
           )}
         </div>
       </div>
+      {pdfError && (
+        <div className="px-4 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
+          Couldn't generate the PDF. Please try again — if it keeps failing, the R Script and Raw Output tabs always work as a backup.
+        </div>
+      )}
 
       {/* Provenance strip — the single most important trust signal in the app.
           Always visible, regardless of which tab is active. */}
