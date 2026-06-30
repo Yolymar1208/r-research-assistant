@@ -362,7 +362,7 @@ export default function Home() {
             <span>·</span>
             <a href="/terms" className="hover:text-gray-300">Terms of Service</a>
             <span>·</span>
-            <a href="mailto:antetokounmpo8@gmail.com" className="hover:text-gray-300">Contact</a>
+            <a href="mailto:yolymarorfiano@yahoo.com" className="hover:text-gray-300">Contact</a>
           </div>
         </div>
       </footer>
