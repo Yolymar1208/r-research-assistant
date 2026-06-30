@@ -159,6 +159,24 @@ export default function Home() {
             <p className="text-xs text-gray-500 mt-0.5">Statistical analysis powered by R · AI generates code, R computes results</p>
           </div>
           <div className="flex items-center gap-3">
+            {usage && usage.plan === 'free' && (
+              <div className="hidden sm:flex items-center gap-2" title={`${usage.currentCount} of ${usage.limit} free analyses used this month`}>
+                <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${usage.remaining <= 1 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                    style={{ width: `${Math.min(100, (usage.currentCount / Math.max(1, usage.limit)) * 100)}%` }}
+                  />
+                </div>
+                <span className={`text-xs font-medium ${usage.remaining <= 1 ? 'text-amber-700' : 'text-gray-500'}`}>
+                  {usage.currentCount}/{usage.limit} used
+                </span>
+              </div>
+            )}
+            {usage && usage.plan !== 'free' && (
+              <span className="hidden sm:inline-block text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full capitalize">
+                {usage.plan} plan · Unlimited
+              </span>
+            )}
             {datasetSummary && <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50">Start Over</button>}
             <a href="/history" className="text-xs text-gray-600 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50">History</a>
             <a href="/landing" className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-50">Pricing</a>
@@ -173,6 +191,19 @@ export default function Home() {
       </header>
 
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        {usage && usage.plan === 'free' && usage.remaining <= 1 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-amber-800">
+              {usage.remaining === 0
+                ? `You've used all ${usage.limit} free analyses this month.`
+                : `You have ${usage.remaining} free analysis left this month.`}
+            </p>
+            <a href="/landing#pricing" className="text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded hover:bg-amber-200 whitespace-nowrap">
+              View Pro plan →
+            </a>
+          </div>
+        )}
+
         <section>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-gray-700">1. Upload Dataset</h2>
@@ -270,7 +301,13 @@ export default function Home() {
           <section className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm font-medium text-red-700">Error</p>
             <p className="text-sm text-red-600 mt-1">{errorMessage.replace('FREE_LIMIT:', '')}</p>
-            <button onClick={runAnalysis} className="mt-3 text-xs text-red-700 border border-red-300 px-3 py-1.5 rounded">Try Again</button>
+            {errorMessage.startsWith('FREE_LIMIT:') ? (
+              <a href="/landing#pricing" className="mt-3 inline-block text-xs text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded font-medium">
+                Upgrade to Pro — unlimited analyses
+              </a>
+            ) : (
+              <button onClick={runAnalysis} className="mt-3 text-xs text-red-700 border border-red-300 px-3 py-1.5 rounded">Try Again</button>
+            )}
           </section>
         )}
       </div>
