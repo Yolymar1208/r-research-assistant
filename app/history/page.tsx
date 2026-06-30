@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/app/lib/supabase'
+import { downloadReportAsPdf } from '@/app/lib/pdfDownload'
 
 const supabase = createClient()
 
@@ -154,13 +155,7 @@ export default function HistoryPage() {
       })
       if (!res.ok) throw new Error('Report generation failed')
       const html = await res.text()
-      const win = window.open('', '_blank')
-      if (win) {
-        win.document.write(html)
-        win.document.close()
-        win.focus()
-        setTimeout(() => win.print(), 800)
-      }
+      await downloadReportAsPdf(html, `JOANResearchOS_Report_${record.selected_test}_${record.id.slice(0, 8)}.pdf`)
     } catch {
       setReportErrorId(record.id)
     } finally {
