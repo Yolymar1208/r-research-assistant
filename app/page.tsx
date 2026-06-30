@@ -12,6 +12,7 @@ import type {
 import DatasetSummaryPanel from '@/app/components/DatasetSummaryPanel'
 import StatusIndicator from '@/app/components/StatusIndicator'
 import AnalysisResults from '@/app/components/AnalysisResults'
+import Starfield from '@/app/components/Starfield'
 
 const supabase = createClient()
 
@@ -151,54 +152,60 @@ export default function Home() {
   const canRun = datasetSummary !== null && researchQuestion.trim().length > 10 && !isRunning
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
+    <main className="min-h-screen relative" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <Starfield />
+      <header className="relative z-10" style={{ background: 'rgba(13, 20, 40, 0.7)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(124,92,255,0.18)' }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">JOANResearchOS</h1>
-            <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Statistical analysis powered by R · AI generates code, R computes results</p>
+          <div className="min-w-0 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c5cff 0%, #2e75b6 100%)', boxShadow: '0 0 0 1px rgba(124,92,255,0.4), 0 4px 14px rgba(124,92,255,0.3)' }}>
+              <span className="text-white font-extrabold text-sm" style={{ fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif' }}>J</span>
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold" style={{ color: '#f1f4fc', fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif', letterSpacing: '-0.3px' }}>JOANResearchOS</h1>
+              <p className="text-xs mt-0.5 hidden sm:block" style={{ color: '#8b9bc4' }}>Statistical analysis powered by R · AI generates code, R computes results</p>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {usage && usage.plan === 'free' && (
               <div className="hidden md:flex items-center gap-2" title={`${usage.currentCount} of ${usage.limit} free analyses used this month`}>
-                <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.12)' }}>
                   <div
-                    className={`h-full rounded-full ${usage.remaining <= 1 ? 'bg-amber-500' : 'bg-blue-500'}`}
-                    style={{ width: `${Math.min(100, (usage.currentCount / Math.max(1, usage.limit)) * 100)}%` }}
+                    className="h-full rounded-full"
+                    style={{ width: `${Math.min(100, (usage.currentCount / Math.max(1, usage.limit)) * 100)}%`, background: usage.remaining <= 1 ? '#e8b85c' : '#60a5fa' }}
                   />
                 </div>
-                <span className={`text-xs font-medium ${usage.remaining <= 1 ? 'text-amber-700' : 'text-gray-500'}`}>
+                <span className="text-xs font-medium" style={{ color: usage.remaining <= 1 ? '#e8b85c' : '#8b9bc4' }}>
                   {usage.currentCount}/{usage.limit} used
                 </span>
               </div>
             )}
             {usage && usage.plan !== 'free' && (
-              <span className="hidden md:inline-block text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full capitalize">
+              <span className="hidden md:inline-block text-xs font-medium px-2 py-1 rounded-full capitalize" style={{ color: '#86efac', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)' }}>
                 {usage.plan} plan · Unlimited
               </span>
             )}
-            {datasetSummary && <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded hover:bg-gray-50 whitespace-nowrap">Start Over</button>}
-            <a href="/history" className="text-xs text-gray-600 hover:text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded hover:bg-gray-50 whitespace-nowrap">History</a>
-            <a href="/landing" className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded hover:bg-blue-50 whitespace-nowrap">Pricing</a>
+            {datasetSummary && <button onClick={reset} className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#aab4d4', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)' }}>Start Over</button>}
+            <a href="/history" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#aab4d4', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)' }}>History</a>
+            <a href="/landing" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#8fb4ff', border: '1px solid rgba(124,92,255,0.35)', background: 'rgba(124,92,255,0.08)' }}>Pricing</a>
             {userEmail && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 hidden lg:block max-w-[140px] truncate">{userEmail}</span>
-                <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-2.5 py-1.5 rounded hover:bg-red-50 whitespace-nowrap">Sign out</button>
+                <span className="text-xs hidden lg:block max-w-[140px] truncate" style={{ color: '#6b7aa3' }}>{userEmail}</span>
+                <button onClick={handleSignOut} className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap" style={{ color: '#fca5a5', border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.06)' }}>Sign out</button>
               </div>
             )}
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6 relative z-10">
         {usage && usage.plan === 'free' && usage.remaining <= 1 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm text-amber-800">
+          <div className="rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: 'rgba(232,184,92,0.08)', border: '1px solid rgba(232,184,92,0.3)' }}>
+            <p className="text-sm" style={{ color: '#e8b85c' }}>
               {usage.remaining === 0
                 ? `You've used all ${usage.limit} free analyses this month.`
                 : `You have ${usage.remaining} free analysis left this month.`}
             </p>
-            <a href="/landing#pricing" className="text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded hover:bg-amber-200 whitespace-nowrap">
+            <a href="/landing#pricing" className="text-xs font-semibold px-3 py-1.5 rounded whitespace-nowrap" style={{ color: '#1a1408', background: '#e8b85c' }}>
               View Pro plan →
             </a>
           </div>
@@ -206,12 +213,13 @@ export default function Home() {
 
         <section>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-700">1. Upload Dataset</h2>
+            <h2 className="text-sm font-semibold" style={{ color: '#aab4d4' }}>1. Upload Dataset</h2>
             {!datasetSummary && (
               <button
                 onClick={loadSampleDataset}
                 disabled={isLoadingDemo}
-                className="text-xs text-violet-700 border border-violet-200 bg-violet-50 px-3 py-1.5 rounded hover:bg-violet-100 font-medium disabled:opacity-50"
+                className="text-xs px-3 py-1.5 rounded font-medium disabled:opacity-50"
+                style={{ color: '#c4b5fd', background: 'rgba(124,92,255,0.1)', border: '1px solid rgba(124,92,255,0.35)' }}
               >
                 {isLoadingDemo ? 'Loading sample…' : '▶ Try a sample outbreak dataset'}
               </button>
@@ -222,44 +230,58 @@ export default function Home() {
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragging ? 'border-blue-400 bg-blue-50' : datasetSummary ? (isDemoDataset ? 'border-violet-300 bg-violet-50' : 'border-green-300 bg-green-50') : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'}`}
+            className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors"
+            style={{
+              borderColor: isDragging ? '#60a5fa' : datasetSummary ? (isDemoDataset ? '#7c5cff' : '#4ade80') : 'rgba(255,255,255,0.16)',
+              background: isDragging ? 'rgba(96,165,250,0.08)' : datasetSummary ? (isDemoDataset ? 'rgba(124,92,255,0.06)' : 'rgba(74,222,128,0.06)') : 'rgba(255,255,255,0.03)',
+            }}
           >
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={onFileChange} className="hidden" />
             {datasetSummary ? (
               <div>
-                <p className={`font-medium ${isDemoDataset ? 'text-violet-700' : 'text-green-700'}`}>
+                <p className="font-medium" style={{ color: isDemoDataset ? '#c4b5fd' : '#86efac' }}>
                   {isDemoDataset ? '▶ Sample dataset loaded — ' : '✓ '}{datasetSummary.fileName}
                 </p>
-                <p className={`text-xs mt-1 ${isDemoDataset ? 'text-violet-600' : 'text-green-600'}`}>{datasetSummary.rowCount.toLocaleString()} rows · {datasetSummary.columnCount} columns</p>
-                <p className="text-xs text-gray-400 mt-2">Click to upload a different file</p>
+                <p className="text-xs mt-1" style={{ color: isDemoDataset ? '#a78bfa' : '#4ade80' }}>{datasetSummary.rowCount.toLocaleString()} rows · {datasetSummary.columnCount} columns</p>
+                <p className="text-xs mt-2" style={{ color: '#6b7aa3' }}>Click to upload a different file</p>
               </div>
             ) : (
               <div>
-                <p className="text-gray-600 font-medium">Drop Excel file here or click to browse</p>
-                <p className="text-xs text-gray-400 mt-1">.xlsx or .xls · max 50MB</p>
-                <p className="text-xs text-gray-400 mt-1">New here? Use the sample dataset above to try a full analysis with no upload needed.</p>
+                <p className="font-medium" style={{ color: '#cdd8ff' }}>Drop Excel file here or click to browse</p>
+                <p className="text-xs mt-1" style={{ color: '#6b7aa3' }}>.xlsx or .xls · max 50MB</p>
+                <p className="text-xs mt-1" style={{ color: '#6b7aa3' }}>New here? Use the sample dataset above to try a full analysis with no upload needed.</p>
               </div>
             )}
           </div>
         </section>
 
-        {datasetSummary && <section><h2 className="text-sm font-semibold text-gray-700 mb-2">2. Dataset Inspection</h2><DatasetSummaryPanel summary={datasetSummary} /></section>}
+        {datasetSummary && (
+          <section>
+            <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>2. Dataset Inspection</h2>
+            <div className="rounded-lg p-px" style={{ background: 'linear-gradient(135deg, rgba(124,92,255,0.3), rgba(46,117,182,0.2))' }}>
+              <div className="rounded-lg overflow-hidden bg-white">
+                <DatasetSummaryPanel summary={datasetSummary} />
+              </div>
+            </div>
+          </section>
+        )}
 
         {datasetSummary && (
           <section>
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">3. Research Question</h2>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+            <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>3. Research Question</h2>
+            <div className="rounded-lg p-4 space-y-4" style={{ background: 'rgba(18,26,48,0.6)', backdropFilter: 'blur(16px)', border: '1px solid rgba(124,92,255,0.2)' }}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">What do you want to find out?</label>
-                <textarea value={researchQuestion} onChange={(e) => setResearchQuestion(e.target.value)} placeholder="e.g. What is the epidemic curve of COVID-19 cases by symptom onset date?" rows={3} className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
-                <p className="text-xs text-gray-400 mt-1">Write it like you'd ask a biostatistician — plain language, no need to name a specific test.</p>
+                <label className="block text-sm font-medium mb-1" style={{ color: '#cdd8ff' }}>What do you want to find out?</label>
+                <textarea value={researchQuestion} onChange={(e) => setResearchQuestion(e.target.value)} placeholder="e.g. What is the epidemic curve of COVID-19 cases by symptom onset date?" rows={3} className="w-full rounded px-3 py-2 text-sm resize-none focus:outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', color: '#e8ecf5' }} />
+                <p className="text-xs mt-1" style={{ color: '#6b7aa3' }}>Write it like you'd ask a biostatistician — plain language, no need to name a specific test.</p>
                 {isDemoDataset && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {SAMPLE_QUESTIONS.map((q) => (
                       <button
                         key={q}
                         onClick={() => setResearchQuestion(q)}
-                        className="text-xs text-violet-700 bg-violet-50 border border-violet-200 px-2 py-1 rounded hover:bg-violet-100"
+                        className="text-xs px-2 py-1 rounded"
+                        style={{ color: '#c4b5fd', background: 'rgba(124,92,255,0.1)', border: '1px solid rgba(124,92,255,0.3)' }}
                       >
                         {q}
                       </button>
@@ -268,18 +290,34 @@ export default function Home() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hypothesis <span className="font-normal text-gray-400">(optional)</span></label>
-                <textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="e.g. Cases peaked in week 2." rows={2} className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
+                <label className="block text-sm font-medium mb-1" style={{ color: '#cdd8ff' }}>Hypothesis <span className="font-normal" style={{ color: '#6b7aa3' }}>(optional)</span></label>
+                <textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="e.g. Cases peaked in week 2." rows={2} className="w-full rounded px-3 py-2 text-sm resize-none focus:outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', color: '#e8ecf5' }} />
               </div>
             </div>
           </section>
         )}
 
-        {datasetSummary && <section><h2 className="text-sm font-semibold text-gray-700 mb-2">4. Analysis Status</h2><StatusIndicator step={step} errorMessage={errorMessage} /></section>}
+        {datasetSummary && (
+          <section>
+            <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>4. Analysis Status</h2>
+            <div className="rounded-lg p-px" style={{ background: 'linear-gradient(135deg, rgba(124,92,255,0.3), rgba(46,117,182,0.2))' }}>
+              <div className="rounded-lg overflow-hidden bg-white">
+                <StatusIndicator step={step} errorMessage={errorMessage} />
+              </div>
+            </div>
+          </section>
+        )}
 
         {datasetSummary && (
           <section>
-            <button onClick={runAnalysis} disabled={!canRun} className={`w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all ${canRun ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
+            <button
+              onClick={runAnalysis}
+              disabled={!canRun}
+              className="w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all"
+              style={canRun
+                ? { color: '#fff', background: 'linear-gradient(135deg, #7c5cff 0%, #2e75b6 100%)', boxShadow: '0 4px 20px rgba(124,92,255,0.35)' }
+                : { color: '#5a6890', background: 'rgba(255,255,255,0.05)', cursor: 'not-allowed' }}
+            >
               {isRunning ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
@@ -292,35 +330,39 @@ export default function Home() {
 
         {analysisResult && (
           <section>
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">5. Results</h2>
-            <AnalysisResults result={analysisResult} />
+            <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>5. Results</h2>
+            <div className="rounded-lg p-px" style={{ background: 'linear-gradient(135deg, rgba(124,92,255,0.3), rgba(46,117,182,0.2))' }}>
+              <div className="rounded-lg overflow-hidden bg-white">
+                <AnalysisResults result={analysisResult} />
+              </div>
+            </div>
           </section>
         )}
 
         {step === 'error' && !analysisResult && errorMessage && (
-          <section className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-red-700">Error</p>
-            <p className="text-sm text-red-600 mt-1">{errorMessage.replace('FREE_LIMIT:', '')}</p>
+          <section className="rounded-lg p-4" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)' }}>
+            <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>Error</p>
+            <p className="text-sm mt-1" style={{ color: '#fca5a5' }}>{errorMessage.replace('FREE_LIMIT:', '')}</p>
             {errorMessage.startsWith('FREE_LIMIT:') ? (
-              <a href="/landing#pricing" className="mt-3 inline-block text-xs text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded font-medium">
+              <a href="/landing#pricing" className="mt-3 inline-block text-xs px-3 py-1.5 rounded font-medium" style={{ color: '#fff', background: 'linear-gradient(135deg, #7c5cff 0%, #2e75b6 100%)' }}>
                 Upgrade to Pro — unlimited analyses
               </a>
             ) : (
-              <button onClick={runAnalysis} className="mt-3 text-xs text-red-700 border border-red-300 px-3 py-1.5 rounded">Try Again</button>
+              <button onClick={runAnalysis} className="mt-3 text-xs px-3 py-1.5 rounded" style={{ color: '#fca5a5', border: '1px solid rgba(248,113,113,0.3)' }}>Try Again</button>
             )}
           </section>
         )}
       </div>
 
-      <footer className="border-t border-gray-200 mt-16 py-6">
+      <footer className="relative z-10 mt-16 py-6" style={{ borderTop: '1px solid rgba(124,92,255,0.15)' }}>
         <div className="max-w-4xl mx-auto px-6 flex flex-col items-center gap-2">
-          <p className="text-center text-xs text-gray-400">JOANResearchOS · Statistical Engine: R · AI generates code, R computes all statistical results</p>
-          <div className="flex items-center gap-3 text-xs text-gray-400">
-            <a href="/privacy" className="hover:text-gray-600">Privacy Policy</a>
+          <p className="text-center text-xs" style={{ color: '#5a6890' }}>JOANResearchOS · Statistical Engine: R · AI generates code, R computes all statistical results</p>
+          <div className="flex items-center gap-3 text-xs" style={{ color: '#5a6890' }}>
+            <a href="/privacy" className="hover:text-gray-300">Privacy Policy</a>
             <span>·</span>
-            <a href="/terms" className="hover:text-gray-600">Terms of Service</a>
+            <a href="/terms" className="hover:text-gray-300">Terms of Service</a>
             <span>·</span>
-            <a href="mailto:antetokounmpo8@gmail.com" className="hover:text-gray-600">Contact</a>
+            <a href="mailto:antetokounmpo8@gmail.com" className="hover:text-gray-300">Contact</a>
           </div>
         </div>
       </footer>
