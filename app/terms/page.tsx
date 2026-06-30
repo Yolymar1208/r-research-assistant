@@ -120,7 +120,7 @@ export default function TermsOfServicePage() {
           <h2 style={h2Style}>10. Contact</h2>
           <p style={pStyle}>
             Questions about these terms can be sent to{' '}
-            <a href="mailto:antetokounmpo8@gmail.com" style={{ color: '#2e75b6' }}>antetokounmpo8@gmail.com</a>.
+            <a href="mailto:yolymarorfiano@yahoo.com" style={{ color: '#2e75b6' }}>yolymarorfiano@yahoo.com</a>.
           </p>
         </div>
       </div>
