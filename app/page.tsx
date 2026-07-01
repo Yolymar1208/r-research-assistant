@@ -14,6 +14,9 @@ import DatasetSummaryPanel from '@/app/components/DatasetSummaryPanel'
 import StatusIndicator from '@/app/components/StatusIndicator'
 import AnalysisResults from '@/app/components/AnalysisResults'
 import Starfield from '@/app/components/Starfield'
+import AssumptionPanel from '@/app/components/AssumptionPanel'
+import { checkAssumptions } from '@/app/lib/assumptionChecker'
+import type { AssumptionResult } from '@/app/lib/assumptionChecker'
 
 const supabase = createClient()
 
@@ -39,6 +42,10 @@ function HomeContent() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isLoadingDemo, setIsLoadingDemo] = useState(false)
   const [isDemoDataset, setIsDemoDataset] = useState(false)
+  // Assumption check phase — set after planning, cleared after execute or back
+  const [pendingPlan, setPendingPlan] = useState<{ plan: AnalysisPlan; rScript: string } | null>(null)
+  const [assumptionResult, setAssumptionResult] = useState<AssumptionResult | null>(null)
+  const [isExecuting, setIsExecuting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -83,10 +90,9 @@ function HomeContent() {
     const file = e.dataTransfer.files?.[0]; if (file) handleFileUpload(file, false)
   }
 
-  async function runAnalysis() {
+  async function planAnalysis() {
     if (!datasetSummary || !researchQuestion.trim()) return
-    setErrorMessage(null); setAnalysisResult(null); setStep('analyzing')
-    let plan: AnalysisPlan, rScript: string
+    setErrorMessage(null); setAnalysisResult(null); setPendingPlan(null); setAssumptionResult(null); setStep('analyzing')
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -100,9 +106,18 @@ function HomeContent() {
         } else { setErrorMessage(data.error || 'Analysis planning failed.') }
         setStep('error'); return
       }
-      plan = data.plan; rScript = data.rScript
-    } catch { setErrorMessage('Network error during analysis planning.'); setStep('error'); return }
+      // Show assumption check panel before executing
+      const checks = checkAssumptions(data.plan, datasetSummary)
+      setPendingPlan({ plan: data.plan, rScript: data.rScript })
+      setAssumptionResult(checks)
+      setStep('inspect') // reuse inspect step to pause before execution
+    } catch { setErrorMessage('Network error during analysis planning.'); setStep('error') }
+  }
 
+  async function executeAnalysis() {
+    if (!pendingPlan || !datasetSummary) return
+    const { plan, rScript } = pendingPlan
+    setIsExecuting(true)
     setStep('executing')
     try {
       const res = await fetch('/api/execute-r', {
@@ -117,10 +132,9 @@ function HomeContent() {
       let data: Record<string, unknown>
       try {
         data = await res.json()
-      } catch (jsonErr) {
+      } catch {
         setErrorMessage('Server returned invalid response. Please try again.')
-        setStep('error')
-        return
+        setStep('error'); return
       }
       const execData = data.execution as RExecutionResult | undefined
       const rawOutput = String((execData?.rawOutput) || '').replace(/\0/g, '')
@@ -134,26 +148,35 @@ function HomeContent() {
       }
       const interpretation = String(data.interpretation || '').replace(/\0/g, '')
       const result: AnalysisResult = { plan, rScript, execution, aiInterpretation: interpretation, completedAt: new Date().toISOString() }
-      const errorMsg = String(execution.errorMessage || (data.error ? String(data.error) : 'R execution failed'))
       setStep(execution.success ? 'complete' : 'error')
-      if (!execution.success) setErrorMessage(errorMsg)
+      if (!execution.success) setErrorMessage(String(execution.errorMessage || (data.error ? String(data.error) : 'R execution failed')))
       setAnalysisResult(result)
+      setPendingPlan(null); setAssumptionResult(null)
       fetch('/api/usage').then(r => r.json()).then(d => { if (d.success) setUsage(d) }).catch(() => {})
     } catch (err) {
       setErrorMessage('Network error: ' + String(err))
       setStep('error')
+    } finally {
+      setIsExecuting(false)
     }
   }
 
+  function backToQuestion() {
+    setPendingPlan(null); setAssumptionResult(null); setStep('inspect')
+  }
+
   async function handleSignOut() { await supabase.auth.signOut(); window.location.href = '/login' }
+
   function reset() {
     setStep('upload'); setDatasetSummary(null); setResearchQuestion(''); setHypothesis('')
     setAnalysisResult(null); setErrorMessage(null); setIsDemoDataset(false)
+    setPendingPlan(null); setAssumptionResult(null); setIsExecuting(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const isRunning = ['analyzing', 'executing', 'interpreting'].includes(step)
-  const canRun = datasetSummary !== null && researchQuestion.trim().length > 10 && !isRunning
+  const isRunning = step === 'analyzing' || isExecuting
+  const showAssumptionCheck = assumptionResult !== null && pendingPlan !== null && !isExecuting && step !== 'complete' && step !== 'error'
+  const canRun = datasetSummary !== null && researchQuestion.trim().length > 10 && !isRunning && !showAssumptionCheck
 
   return (
     <main className="min-h-screen relative" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -321,20 +344,34 @@ function HomeContent() {
           </section>
         )}
 
-        {datasetSummary && (
+        {/* Assumption check panel — appears after planning, before execution */}
+        {showAssumptionCheck && pendingPlan && assumptionResult && (
+          <section>
+            <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>4b. Pre-flight Check</h2>
+            <AssumptionPanel
+              plan={pendingPlan.plan}
+              result={assumptionResult}
+              onProceed={executeAnalysis}
+              onBack={backToQuestion}
+              isExecuting={isExecuting}
+            />
+          </section>
+        )}
+
+        {datasetSummary && !showAssumptionCheck && (
           <section>
             <button
-              onClick={runAnalysis}
+              onClick={planAnalysis}
               disabled={!canRun}
               className="w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all"
               style={canRun
                 ? { color: '#fff', background: 'linear-gradient(135deg, #7c5cff 0%, #2e75b6 100%)', boxShadow: '0 4px 20px rgba(124,92,255,0.35)' }
                 : { color: '#5a6890', background: 'rgba(255,255,255,0.05)', cursor: 'not-allowed' }}
             >
-              {isRunning ? (
+              {step === 'analyzing' ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-                  {step === 'analyzing' ? 'AI creating analysis plan…' : step === 'executing' ? 'R running (may take up to 30s)…' : 'AI interpreting…'}
+                  AI creating analysis plan…
                 </span>
               ) : 'Generate Analysis'}
             </button>
@@ -361,7 +398,7 @@ function HomeContent() {
                 Upgrade to Pro — unlimited analyses
               </a>
             ) : (
-              <button onClick={runAnalysis} className="mt-3 text-xs px-3 py-1.5 rounded" style={{ color: '#fca5a5', border: '1px solid rgba(248,113,113,0.3)' }}>Try Again</button>
+              <button onClick={planAnalysis} className="mt-3 text-xs px-3 py-1.5 rounded" style={{ color: '#fca5a5', border: '1px solid rgba(248,113,113,0.3)' }}>Try Again</button>
             )}
           </section>
         )}
