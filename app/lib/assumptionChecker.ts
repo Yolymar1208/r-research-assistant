@@ -65,11 +65,11 @@ function dateCheck(col: ColumnInfo | undefined): AssumptionCheck | null {
   return { label: 'Date column', status: 'pass', detail: `"${col.name}" was detected as a date column.` }
 }
 
-export function checkAssumptions(plan: AnalysisPlan, summary: DatasetSummary): AssumptionResult {
+export function checkAssumptions(plan: AnalysisPlan, datasetSummary: DatasetSummary): AssumptionResult {
   const checks: AssumptionCheck[] = []
-  const n = summary.rowCount
-  const dvCol = findColumn(summary, plan.dependentVariable)
-  const ivCol = findColumn(summary, plan.independentVariable)
+  const n = datasetSummary.rowCount
+  const dvCol = findColumn(datasetSummary, plan.dependentVariable)
+  const ivCol = findColumn(datasetSummary, plan.independentVariable)
   const test = plan.selectedTest
 
   // ─── Per-test checks ───────────────────────────────────────────────────────
@@ -247,11 +247,11 @@ export function checkAssumptions(plan: AnalysisPlan, summary: DatasetSummary): A
   const failCount = checks.filter(c => c.status === 'fail').length
   const warnCount = checks.filter(c => c.status === 'warn').length
 
-  const summary = hasFail
+  const checkSummary = hasFail
     ? `${failCount} critical issue${failCount > 1 ? 's' : ''} detected — review before proceeding`
     : hasWarn
     ? `${warnCount} note${warnCount > 1 ? 's' : ''} — R will handle these, but be aware of the caveats`
     : 'All assumptions appear to be met — good to go'
 
-  return { checks, overallStatus, canProceed: true, summary }
+  return { checks, overallStatus, canProceed: true, summary: checkSummary }
 }
