@@ -138,7 +138,10 @@ function extractTTest(plan: AnalysisPlan, rawOutput: string, datasetName: string
   const tMatch = rawOutput.match(/t\s*=\s*([-\d.]+)/)
   const dfMatch = rawOutput.match(/df\s*=\s*([\d.]+)/)
   const pMatch = rawOutput.match(/p-value\s*[<=]\s*([\d.e-]+)/)
-  const ciMatch = rawOutput.match(/([-\d.]+)\s+([-\d.]+)\s*\n.*95 percent confidence interval/s)
+  // Extract CI bounds without dotAll flag — find the CI line then grab the numbers before it
+  const ciIdx = rawOutput.indexOf('95 percent confidence interval')
+  const ciLine = ciIdx > 0 ? rawOutput.slice(Math.max(0, ciIdx - 60), ciIdx) : ''
+  const ciNums = ciLine.match(/([-\d.]+)\s+([-\d.]+)\s*$/)
   const dMatch = rawOutput.match(/Cohen's d[^\n]+([-\d.]+)/)
 
   if (paired) {
@@ -147,10 +150,10 @@ function extractTTest(plan: AnalysisPlan, rawOutput: string, datasetName: string
     // Get the tapply means block
     const meansBlock = rawOutput.match(/\n([\w\s]+)\n([\d.]+)\s*\n([\w\s]+)\n([\d.]+)/)
     if (meansBlock) {
-      rows.push(`"${meansBlock[1].trim()}","",${meansBlock[2]},${tMatch?.[1] || ''},${dfMatch?.[1] || ''},${pMatch?.[1] || ''},"","",${dMatch?.[1] || ''}`)
+      rows.push(`"${meansBlock[1].trim()}","",${meansBlock[2]},${tMatch?.[1] || ''},${dfMatch?.[1] || ''},${pMatch?.[1] || ''},${ciNums?.[1] || ''},${ciNums?.[2] || ''},${dMatch?.[1] || ''}`)
       rows.push(`"${meansBlock[3].trim()}","",${meansBlock[4]},"","","","","","",`)
     } else {
-      rows.push(`"Group 1","","",${tMatch?.[1] || ''},${dfMatch?.[1] || ''},${pMatch?.[1] || ''},"","",${dMatch?.[1] || ''}`)
+      rows.push(`"Group 1","","",${tMatch?.[1] || ''},${dfMatch?.[1] || ''},${pMatch?.[1] || ''},${ciNums?.[1] || ''},${ciNums?.[2] || ''},${dMatch?.[1] || ''}`)
     }
   }
   return [...csvHeader(plan, datasetName, ['Join group column to geographic unit (barangay/facility/area)']), ...rows].join('\n')
