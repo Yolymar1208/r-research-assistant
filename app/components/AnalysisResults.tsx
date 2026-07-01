@@ -188,9 +188,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset' }: Pro
           <button onClick={downloadPDFReport} disabled={isGeneratingPdf} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium whitespace-nowrap disabled:opacity-60">
             {isGeneratingPdf ? 'Preparing PDF…' : '↓ PDF Report'}
           </button>
-          {isEpiTest && (
-            <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium whitespace-nowrap">↓ QGIS CSV</button>
-          )}
+          <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium whitespace-nowrap">↓ QGIS CSV</button>
         </div>
       </div>
       {pdfError && (
