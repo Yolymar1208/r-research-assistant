@@ -374,12 +374,56 @@ cat("\\n=== ANALYSIS COMPLETE ===\\n")
 Generate the complete script now. Pure R only.`
 }
 
-export function buildInterpretationPrompt(plan: AnalysisPlan, rScript: string, rawOutput: string): string {
+export function buildInterpretationPrompt(
+  plan: AnalysisPlan,
+  rScript: string,
+  rawOutput: string,
+  language: 'english' | 'filipino' = 'english'
+): string {
   const EPI_TESTS = ['epidemic_curve', 'attack_rate_table', 'age_sex_pyramid', 'survival_analysis', 'moving_average']
   const isEpiTest = EPI_TESTS.includes(plan.selectedTest)
 
+  // Language instruction block — only the surrounding explanation changes.
+  // All statistical values must still come directly from R output regardless of language.
+  const languageInstruction = language === 'filipino'
+    ? `WIKA NG INTERPRETASYON: Isulat ang buong interpretasyon SA WIKANG FILIPINO (Tagalog).
+Gamitin ang mga terminong pampubliko na naiintindihan ng mga nars, doktor, at opisyal ng kalusugan.
+Ang mga numero, p-value, confidence intervals, at statistical values ay kopyahin nang tama mula sa R output — huwag isalin ang mga numero.
+Ang mga section headings ay isulat din sa Filipino.
+Halimbawa ng tamang headings:
+  **1. Buod ng mga Natuklasan**
+  **2. Mga Resulta ayon sa Panahon**
+  **3. Mga Resulta ayon sa Tao**
+  **4. Mga Resulta ayon sa Lugar**
+  **5. Mga Istatistikal na Resulta**
+  **6. Mga Rekomendasyon**
+  **7. Mga Limitasyon**`
+    : `LANGUAGE: Write the entire interpretation in English.`
+
   const sections = isEpiTest
-    ? `Write using the standard WHO/FETP/DOH outbreak investigation format:
+    ? (language === 'filipino' ? `Isulat gamit ang standard WHO/FETP/DOH na format para sa imbestigasyon ng outbreak:
+
+**1. Buod ng mga Natuklasan**
+2-3 pangungusap. Sabihin ang pangunahing natuklasan at ang kahulugan nito para sa tugon sa outbreak.
+
+**2. Mga Resulta ayon sa Panahon**
+Temporal na distribusyon: kailan nagsimula, umabot sa tuktok, at natapos ang outbreak? Ano ang ipinapahiwatig ng hugis ng kurba tungkol sa paraan ng pagkalat (point source, propagated, o continuous)? Gumamit ng eksaktong petsa at bilang mula sa R output lamang.
+
+**3. Mga Resulta ayon sa Tao**
+Sino ang naapektuhan? Distribusyon ng edad, breakdown ng kasarian, attack rates sa bawat grupo, CFR, o oras ng kaligtasan — alinman ang naaangkop. Gumamit ng eksaktong halaga mula sa R output lamang.
+
+**4. Mga Resulta ayon sa Lugar**
+Tandaan ang anumang impormasyon ng lugar. Kung walang datos ng lugar na nasuri, sabihin: "Ang distribusyon ayon sa lugar ay hindi nasuri sa pagsusuring ito. Inirerekomenda ang spot map gamit ang datos ng barangay/munisipyo."
+
+**5. Mga Istatistikal na Resulta**
+Iulat ang eksaktong halaga: test statistic, p-value, confidence intervals, risk ratios, odds ratios, effect sizes. Gumamit ng talahanayan kung angkop.
+
+**6. Mga Rekomendasyon**
+3-5 kongkretong aksyon na rekomendasyon sa kalusugang pampubliko. Bilangin ang mga ito. Sundin ang mga kategorya ng FETP: (1) agarang mga hakbang sa pagkontrol, (2) pagpapahusay ng surveillance, (3) karagdagang imbestigasyon, (4) pag-iwas.
+
+**7. Mga Limitasyon**
+3-5 tiyak na limitasyon: laki ng sample, posibleng mga bias, nawawalang datos, mga confounder, mga babala sa R output. Markahan ang mga babala gamit ang ⚠️.`
+      : `Write using the standard WHO/FETP/DOH outbreak investigation format:
 
 **1. Summary of Findings**
 2-3 sentences. State the key epidemiological finding and what it means for outbreak response.
@@ -400,8 +444,24 @@ Report exact values: test statistic, p-value, confidence intervals, risk ratios,
 3-5 concrete, actionable public health recommendations. Number them. Follow FETP categories: (1) immediate control measures, (2) surveillance enhancement, (3) further investigation, (4) prevention.
 
 **7. Limitations**
-3-5 specific limitations: sample size, potential biases, missing data, confounders, R output warnings. Flag warnings with ⚠️.`
-    : `Write using these five sections:
+3-5 specific limitations: sample size, potential biases, missing data, confounders, R output warnings. Flag warnings with ⚠️.`)
+    : (language === 'filipino' ? `Isulat gamit ang limang seksyong ito:
+
+**1. Buod ng mga Natuklasan**
+2-3 pangungusap. Sabihin kung mahalaga o hindi ang resulta.
+
+**2. Mga Istatistikal na Resulta**
+Eksaktong halaga mula sa R: test statistic, df, p-value, CI, effect size.
+
+**3. Klinikal/Praktikal na Interpretasyon**
+Ano ang kahulugan ng mga resulta sa praktis?
+
+**4. Pagsusuri ng mga Pagpapalagay**
+Natugunan ba ang mga pagpapalagay batay sa R output?
+
+**5. Mga Limitasyon at Susunod na Hakbang**
+Laki ng sample, mga confounder, mga susunod na pagsusuri.`
+      : `Write using these five sections:
 
 **1. Summary of Findings**
 2-3 sentences. State whether significant or not.
@@ -416,9 +476,11 @@ What do these results mean in practice?
 Were assumptions met based on R output?
 
 **5. Limitations and Next Steps**
-Sample size, confounders, follow-up analyses.`
+Sample size, confounders, follow-up analyses.`)
 
   return `You are a senior field epidemiologist interpreting R statistical output for a public health report.
+
+${languageInstruction}
 
 STRICT RULES:
 - Base interpretation ENTIRELY on the R output below — never fabricate or estimate values
