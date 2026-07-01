@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import type { AnalysisResult } from '@/app/types'
-import { downloadReportAsPdf } from '@/app/lib/pdfDownload'
+import { downloadReportAsPdf } from '@/app/lib/pdfReport'
 
 interface Props {
   result: AnalysisResult
+  datasetName?: string
 }
 
 const TEST_LABELS: Record<string, string> = {
@@ -70,7 +71,7 @@ function ProvenanceBadge({ source }: { source: 'r' | 'ai' }) {
   )
 }
 
-export default function AnalysisResults({ result }: Props) {
+export default function AnalysisResults({ result, datasetName = 'Dataset' }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>(
     result.execution.success ? 'interpretation' : 'output'
   )
@@ -98,14 +99,7 @@ export default function AnalysisResults({ result }: Props) {
     setIsGeneratingPdf(true)
     setPdfError(false)
     try {
-      const res = await fetch('/api/generate-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result, datasetName: 'Dataset' }),
-      })
-      if (!res.ok) throw new Error('Report generation failed')
-      const html = await res.text()
-      await downloadReportAsPdf(html, `JOANResearchOS_Report_${result.plan.selectedTest}_${Date.now()}.pdf`)
+      await downloadReportAsPdf(result, result.plan.researchQuestion ? datasetName : 'Dataset')
     } catch (err) {
       console.error('PDF download failed:', err)
       setPdfError(true)
