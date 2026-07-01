@@ -260,6 +260,13 @@ export default function HistoryPage() {
                     </p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <a
+                      href={`/?question=${encodeURIComponent(record.research_question)}`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: '12px', color: '#7c5cff', background: 'rgba(124,92,255,0.08)', border: '1px solid rgba(124,92,255,0.3)', padding: '4px 10px', borderRadius: '6px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      ↺ Re-run
+                    </a>
                     <button
                       onClick={(e) => { e.stopPropagation(); downloadRScript(record) }}
                       style={{ fontSize: '12px', color: '#2e75b6', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
