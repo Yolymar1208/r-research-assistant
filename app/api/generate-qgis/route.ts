@@ -223,8 +223,10 @@ function extractCorrelation(plan: AnalysisPlan, rawOutput: string, datasetName: 
   const rows: string[] = ['variable_1,variable_2,correlation_coefficient,p_value,ci_lower,ci_upper,method']
   const rMatch = rawOutput.match(/cor\s*=\s*([-\d.]+)/) || rawOutput.match(/rho\s*=\s*([-\d.]+)/)
   const pMatch = rawOutput.match(/p-value\s*[<=]\s*([\d.e-]+)/)
-  const ciMatch = rawOutput.match(/([-\d.]+)\s+([-\d.]+)\s*\n.*95 percent confidence interval/s)
-  rows.push(`"${plan.dependentVariable || ''}","${plan.independentVariable || ''}",${rMatch?.[1] || ''},${pMatch?.[1] || ''},${ciMatch?.[1] || ''},${ciMatch?.[2] || ''},${method}`)
+  const ciIdx2 = rawOutput.indexOf('95 percent confidence interval')
+  const ciLine2 = ciIdx2 > 0 ? rawOutput.slice(Math.max(0, ciIdx2 - 60), ciIdx2) : ''
+  const ciNums2 = ciLine2.match(/([-\d.]+)\s+([-\d.]+)\s*$/)
+  rows.push(`"${plan.dependentVariable || ''}","${plan.independentVariable || ''}",${rMatch?.[1] || ''},${pMatch?.[1] || ''},${ciNums2?.[1] || ''},${ciNums2?.[2] || ''},${method}`)
   return [...csvHeader(plan, datasetName, [
     `Correlation method: ${method}`,
     'Use as attribute table for scatter plot layer in QGIS',
