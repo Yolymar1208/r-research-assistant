@@ -17,6 +17,8 @@ import Starfield from '@/app/components/Starfield'
 import AssumptionPanel from '@/app/components/AssumptionPanel'
 import { checkAssumptions } from '@/app/lib/assumptionChecker'
 import type { AssumptionResult } from '@/app/lib/assumptionChecker'
+import OnboardingChecklist, { loadOnboardingState, saveOnboardingState, markEpiTestRun } from '@/app/components/OnboardingChecklist'
+import type { OnboardingState } from '@/app/components/OnboardingChecklist'
 
 const supabase = createClient()
 
@@ -48,9 +50,18 @@ function HomeContent() {
   const [isExecuting, setIsExecuting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Onboarding checklist state — loaded from localStorage on mount
+  const [onboarding, setOnboarding] = useState<OnboardingState>({
+    uploadedDataset: false, ranAnalysis: false, downloadedReport: false, triedEpiTest: false,
+  })
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+
   useEffect(() => {
     fetch('/api/usage').then(r => r.json()).then(data => { if (data.success) setUsage(data) }).catch(() => {})
     supabase.auth.getUser().then(({ data }) => { if (data.user) setUserEmail(data.user.email || null) })
+    // Load onboarding state from localStorage on mount
+    setOnboarding(loadOnboardingState())
+    setOnboardingDismissed(localStorage.getItem('joanresearchos_onboarding_dismissed') === 'true')
   }, [])
 
   async function handleFileUpload(file: File, isDemo = false) {
@@ -64,6 +75,9 @@ function HomeContent() {
       if (!data.success) { setErrorMessage(data.error || 'Upload failed.'); setStep('error'); return }
       setDatasetSummary(data.summary)
       setStep('inspect')
+      // Onboarding: mark dataset uploaded
+      saveOnboardingState({ uploadedDataset: true })
+      setOnboarding(loadOnboardingState())
     } catch { setErrorMessage('Network error during upload.'); setStep('error') }
   }
 
@@ -152,6 +166,10 @@ function HomeContent() {
       if (!execution.success) setErrorMessage(String(execution.errorMessage || (data.error ? String(data.error) : 'R execution failed')))
       setAnalysisResult(result)
       setPendingPlan(null); setAssumptionResult(null)
+      // Onboarding: mark analysis run + epi test if applicable
+      saveOnboardingState({ ranAnalysis: true })
+      markEpiTestRun(plan.selectedTest)
+      setOnboarding(loadOnboardingState())
       fetch('/api/usage').then(r => r.json()).then(d => { if (d.success) setUsage(d) }).catch(() => {})
     } catch (err) {
       setErrorMessage('Network error: ' + String(err))
@@ -236,6 +254,17 @@ function HomeContent() {
               View Pro plan →
             </a>
           </div>
+        )}
+
+        {/* Onboarding checklist — shown until dismissed or all steps complete and user dismisses */}
+        {!onboardingDismissed && (
+          <OnboardingChecklist
+            state={onboarding}
+            onDismiss={() => {
+              setOnboardingDismissed(true)
+              localStorage.setItem('joanresearchos_onboarding_dismissed', 'true')
+            }}
+          />
         )}
 
         {prefillQuestion && !datasetSummary && (
@@ -383,7 +412,14 @@ function HomeContent() {
             <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>5. Results</h2>
             <div className="rounded-lg p-px" style={{ background: 'linear-gradient(135deg, rgba(124,92,255,0.3), rgba(46,117,182,0.2))' }}>
               <div className="rounded-lg overflow-hidden bg-white">
-                <AnalysisResults result={analysisResult} datasetName={datasetSummary?.fileName || 'Dataset'} />
+                <AnalysisResults
+                  result={analysisResult}
+                  datasetName={datasetSummary?.fileName || 'Dataset'}
+                  onReportDownload={() => {
+                    saveOnboardingState({ downloadedReport: true })
+                    setOnboarding(loadOnboardingState())
+                  }}
+                />
               </div>
             </div>
           </section>
