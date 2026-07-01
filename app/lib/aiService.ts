@@ -38,13 +38,11 @@ export async function createAnalysisPlan(
     .join('')
     .trim()
 
-  // Strip markdown fences and extract first JSON object
   let cleaned = text
     .replace(/^```(?:json)?\s*/im, '')
     .replace(/\s*```\s*$/m, '')
     .trim()
 
-  // If response has extra content after JSON, extract just the JSON object
   const jsonStart = cleaned.indexOf('{')
   const jsonEnd = cleaned.lastIndexOf('}')
   if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -53,7 +51,6 @@ export async function createAnalysisPlan(
 
   try {
     const parsed = JSON.parse(cleaned) as Record<string, unknown>
-    // Remove any R code fields that AI might have added
     delete parsed.planRCode
     delete parsed.rCode
     delete parsed.code
@@ -85,7 +82,6 @@ export async function generateRScript(
     .join('')
     .trim()
 
-  // Strip markdown code fences if present
   return text
     .replace(/^```r?\n?/im, '')
     .replace(/\n?```$/m, '')
@@ -93,14 +89,18 @@ export async function generateRScript(
 }
 
 // ─── Step 3: Interpret R Output ────────────────────────────────────────────────
+// language: 'english' (default) | 'filipino'
+// All statistical values come from rawOutput regardless of language —
+// only the surrounding explanation text changes.
 
 export async function interpretROutput(
   plan: AnalysisPlan,
   rScript: string,
-  rawOutput: string
+  rawOutput: string,
+  language: 'english' | 'filipino' = 'english'
 ): Promise<string> {
   const client = getClient()
-  const prompt = buildInterpretationPrompt(plan, rScript, rawOutput)
+  const prompt = buildInterpretationPrompt(plan, rScript, rawOutput, language)
 
   const response = await client.messages.create({
     model: MODEL,
