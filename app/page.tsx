@@ -55,6 +55,8 @@ function HomeContent() {
     uploadedDataset: false, ranAnalysis: false, downloadedReport: false, triedEpiTest: false,
   })
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  // Email notification preference — persisted to localStorage
+  const [emailNotify, setEmailNotify] = useState(false)
 
   useEffect(() => {
     fetch('/api/usage').then(r => r.json()).then(data => { if (data.success) setUsage(data) }).catch(() => {})
@@ -62,6 +64,7 @@ function HomeContent() {
     // Load onboarding state from localStorage on mount
     setOnboarding(loadOnboardingState())
     setOnboardingDismissed(localStorage.getItem('joanresearchos_onboarding_dismissed') === 'true')
+    setEmailNotify(localStorage.getItem('joanresearchos_email_notify') === 'true')
   }, [])
 
   async function handleFileUpload(file: File, isDemo = false) {
@@ -170,6 +173,21 @@ function HomeContent() {
       saveOnboardingState({ ranAnalysis: true })
       markEpiTestRun(plan.selectedTest)
       setOnboarding(loadOnboardingState())
+      // Fire-and-forget email notification if user opted in
+      if (emailNotify && userEmail) {
+        fetch('/api/notify-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: userEmail,
+            datasetName: datasetSummary?.fileName || 'Unknown',
+            selectedTest: plan.selectedTest,
+            researchQuestion: plan.researchQuestion,
+            executionSuccess: execution.success,
+            executionTimeMs: execution.executionTimeMs,
+          }),
+        }).catch(() => {}) // never surface email errors to the user
+      }
       fetch('/api/usage').then(r => r.json()).then(d => { if (d.success) setUsage(d) }).catch(() => {})
     } catch (err) {
       setErrorMessage('Network error: ' + String(err))
@@ -235,6 +253,20 @@ function HomeContent() {
             {userEmail && (
               <div className="flex items-center gap-2">
                 <span className="text-xs hidden lg:block max-w-[140px] truncate" style={{ color: '#6b7aa3' }}>{userEmail}</span>
+                <button
+                  onClick={() => {
+                    const next = !emailNotify
+                    setEmailNotify(next)
+                    localStorage.setItem('joanresearchos_email_notify', next ? 'true' : 'false')
+                  }}
+                  title={emailNotify ? 'Email notifications on — click to turn off' : 'Click to get email when analysis completes'}
+                  className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap"
+                  style={emailNotify
+                    ? { color: '#86efac', border: '1px solid rgba(74,222,128,0.3)', background: 'rgba(74,222,128,0.08)' }
+                    : { color: '#6b7aa3', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}
+                >
+                  {emailNotify ? '🔔 Notify' : '🔕 Notify'}
+                </button>
                 <button onClick={handleSignOut} className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap" style={{ color: '#fca5a5', border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.06)' }}>Sign out</button>
               </div>
             )}
