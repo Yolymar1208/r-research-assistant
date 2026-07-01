@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase'
 import type {
   AppStep,
@@ -23,10 +24,13 @@ const SAMPLE_QUESTIONS = [
   'What is the age-sex distribution of cases?',
 ]
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams()
+  const prefillQuestion = searchParams.get('question') || ''
+
   const [step, setStep] = useState<AppStep>('upload')
   const [datasetSummary, setDatasetSummary] = useState<DatasetSummary | null>(null)
-  const [researchQuestion, setResearchQuestion] = useState('')
+  const [researchQuestion, setResearchQuestion] = useState(prefillQuestion)
   const [hypothesis, setHypothesis] = useState('')
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -211,6 +215,15 @@ export default function Home() {
           </div>
         )}
 
+        {prefillQuestion && !datasetSummary && (
+          <div className="rounded-lg p-3 flex items-center gap-3" style={{ background: 'rgba(124,92,255,0.08)', border: '1px solid rgba(124,92,255,0.3)' }}>
+            <span style={{ color: '#c4b5fd', fontSize: '18px', flexShrink: 0 }}>↺</span>
+            <p className="text-sm" style={{ color: '#c4b5fd' }}>
+              Re-running a previous analysis — your research question has been pre-filled below. Upload a new dataset to continue.
+            </p>
+          </div>
+        )}
+
         <section>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold" style={{ color: '#aab4d4' }}>1. Upload Dataset</h2>
@@ -367,5 +380,15 @@ export default function Home() {
         </div>
       </footer>
     </main>
+  )
+}
+
+// useSearchParams() requires a Suspense boundary in Next.js 14 App Router.
+// Wrapping HomeContent here keeps the export signature unchanged.
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   )
 }
