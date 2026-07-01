@@ -7,6 +7,7 @@ import { downloadReportAsPdf } from '@/app/lib/pdfReport'
 interface Props {
   result: AnalysisResult
   datasetName?: string
+  onReportDownload?: () => void
 }
 
 const TEST_LABELS: Record<string, string> = {
@@ -71,7 +72,7 @@ function ProvenanceBadge({ source }: { source: 'r' | 'ai' }) {
   )
 }
 
-export default function AnalysisResults({ result, datasetName = 'Dataset' }: Props) {
+export default function AnalysisResults({ result, datasetName = 'Dataset', onReportDownload }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>(
     result.execution.success ? 'interpretation' : 'output'
   )
@@ -97,6 +98,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset' }: Pro
     a.download = 'analysis.R'
     a.click()
     URL.revokeObjectURL(url)
+    onReportDownload?.()
   }
 
   async function downloadPDFReport() {
@@ -104,6 +106,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset' }: Pro
     setPdfError(false)
     try {
       await downloadReportAsPdf(result, result.plan.researchQuestion ? datasetName : 'Dataset')
+      onReportDownload?.()
     } catch (err) {
       console.error('PDF download failed:', err)
       setPdfError(true)
