@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/app/lib/supabase'
-import { downloadReportAsPdf } from '@/app/lib/pdfDownload'
+import { downloadHistoryReportAsPdf } from '@/app/lib/pdfReport'
 
 const supabase = createClient()
 
@@ -124,38 +124,7 @@ export default function HistoryPage() {
     setGeneratingReportId(record.id)
     setReportErrorId(null)
     try {
-      const result = {
-        plan: {
-          researchQuestion: record.research_question,
-          hypothesis: '',
-          dependentVariable: null,
-          independentVariable: null,
-          additionalVariables: [],
-          selectedTest: record.selected_test,
-          testRationale: '',
-          assumptions: [],
-          followUpQuestions: [],
-          planSummary: '',
-        },
-        rScript: record.r_script,
-        execution: {
-          success: record.execution_success,
-          rawOutput: record.raw_output,
-          errorMessage: null,
-          executionTimeMs: 0,
-          rScript: record.r_script,
-        },
-        aiInterpretation: record.ai_interpretation,
-        completedAt: record.created_at,
-      }
-      const res = await fetch('/api/generate-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result, datasetName: record.dataset_name }),
-      })
-      if (!res.ok) throw new Error('Report generation failed')
-      const html = await res.text()
-      await downloadReportAsPdf(html, `JOANResearchOS_Report_${record.selected_test}_${record.id.slice(0, 8)}.pdf`)
+      await downloadHistoryReportAsPdf(record)
     } catch {
       setReportErrorId(record.id)
     } finally {
