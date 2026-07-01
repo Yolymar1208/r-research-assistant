@@ -333,7 +333,7 @@ export default function Home() {
             <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>5. Results</h2>
             <div className="rounded-lg p-px" style={{ background: 'linear-gradient(135deg, rgba(124,92,255,0.3), rgba(46,117,182,0.2))' }}>
               <div className="rounded-lg overflow-hidden bg-white">
-                <AnalysisResults result={analysisResult} />
+                <AnalysisResults result={analysisResult} datasetName={datasetSummary?.fileName || 'Dataset'} />
               </div>
             </div>
           </section>
