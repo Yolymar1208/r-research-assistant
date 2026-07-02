@@ -33,14 +33,14 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('analysis_history')
-      .select('id, dataset_name, research_question, selected_test, execution_success, created_at, ai_interpretation, r_script, raw_output')
+      .select('id, dataset_name, research_question, selected_test, execution_success, created_at, ai_interpretation, r_script, raw_output, plan_json')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50)
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     return NextResponse.json({ success: true, history: data })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: 'Failed to load history' }, { status: 500 })
   }
 }
