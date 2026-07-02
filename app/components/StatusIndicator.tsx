@@ -7,14 +7,13 @@ interface Props {
   errorMessage?: string | null
 }
 
-const STEPS: { key: AppStep; label: string; description: string }[] = [
-  { key: 'upload', label: 'Upload', description: 'Upload Excel file' },
-  { key: 'inspect', label: 'Inspect', description: 'Dataset inspected' },
-  { key: 'question', label: 'Question', description: 'Research question entered' },
-  { key: 'analyzing', label: 'AI Planning', description: 'AI creating analysis plan' },
-  { key: 'executing', label: 'R Running', description: 'R executing script' },
-  { key: 'interpreting', label: 'Interpreting', description: 'AI interpreting results' },
-  { key: 'complete', label: 'Complete', description: 'Analysis complete' },
+const STEPS: { key: AppStep; label: string }[] = [
+  { key: 'upload', label: 'Upload' },
+  { key: 'inspect', label: 'Inspect' },
+  { key: 'analyzing', label: 'AI Planning' },
+  { key: 'executing', label: 'R Running' },
+  { key: 'interpreting', label: 'Interpreting' },
+  { key: 'complete', label: 'Complete' },
 ]
 
 const STEP_ORDER: AppStep[] = [
@@ -25,66 +24,63 @@ function getStepIndex(step: AppStep): number {
   return STEP_ORDER.indexOf(step)
 }
 
+// Frosted light palette — matches DatasetSummaryPanel
+const BG = {
+  panel:   'rgba(240,244,250,0.97)',
+  header:  'rgba(228,236,248,0.95)',
+  border:  'rgba(180,200,230,0.5)',
+  text:    '#1a2a3a',
+  subtext: '#4a6080',
+  muted:   '#8098b8',
+}
+
 export default function StatusIndicator({ step, errorMessage }: Props) {
   const currentIndex = getStepIndex(step)
   const isError = step === 'error'
   const isBusy = step === 'analyzing' || step === 'executing' || step === 'interpreting'
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-sm font-semibold text-gray-700">Analysis Status</h2>
+    <div style={{ background: BG.panel, border: `1px solid ${BG.border}`, borderRadius: '8px', padding: '14px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <h2 style={{ fontSize: '13px', fontWeight: 700, color: BG.text, margin: 0 }}>Analysis Status</h2>
         {isBusy && (
-          <span className="flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+          <span style={{ position: 'relative', display: 'inline-flex', width: '8px', height: '8px' }}>
+            <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#3b82f6', opacity: 0.75, animation: 'ping 1s cubic-bezier(0,0,0.2,1) infinite' }} />
+            <span style={{ position: 'relative', borderRadius: '50%', width: '8px', height: '8px', background: '#2563eb' }} />
           </span>
         )}
       </div>
 
       {isError ? (
-        <div className="bg-red-50 border border-red-200 rounded p-3">
-          <p className="text-sm font-medium text-red-700">Error</p>
-          {errorMessage && (
-            <p className="text-sm text-red-600 mt-1">{errorMessage}</p>
-          )}
+        <div style={{ background: 'rgba(254,242,242,0.97)', border: '1px solid rgba(252,165,165,0.6)', borderRadius: '8px', padding: '10px 14px' }}>
+          <p style={{ fontSize: '13px', fontWeight: 700, color: '#991b1b', margin: '0 0 4px' }}>Error</p>
+          {errorMessage && <p style={{ fontSize: '12px', color: '#b91c1c', margin: 0 }}>{errorMessage}</p>}
         </div>
       ) : (
-        <div className="flex items-center gap-1">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {STEPS.filter(s => s.key !== 'question').map((s, i, arr) => {
             const sIndex = getStepIndex(s.key)
             const isDone = sIndex < currentIndex
             const isCurrent = sIndex === currentIndex
-            const isPending = sIndex > currentIndex
-
             return (
-              <div key={s.key} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                      isDone
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : isCurrent
-                        ? 'bg-blue-500 border-blue-500 text-white'
-                        : 'bg-white border-gray-300 text-gray-400'
-                    }`}
-                  >
-                    {isDone ? '✓' : isCurrent && (step === 'analyzing' || step === 'executing' || step === 'interpreting') ? '…' : sIndex + 1}
+              <div key={s.key} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{
+                    width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: 700, border: '2px solid',
+                    borderColor: isDone ? '#22c55e' : isCurrent ? '#3b82f6' : BG.border,
+                    background: isDone ? '#22c55e' : isCurrent ? '#3b82f6' : BG.panel,
+                    color: isDone || isCurrent ? '#fff' : BG.muted,
+                    transition: 'all 0.2s',
+                  }}>
+                    {isDone ? '✓' : isCurrent && isBusy ? '…' : sIndex + 1}
                   </div>
-                  <span
-                    className={`text-xs mt-1 whitespace-nowrap ${
-                      isDone ? 'text-green-600' : isCurrent ? 'text-blue-600 font-medium' : 'text-gray-400'
-                    }`}
-                  >
+                  <span style={{ fontSize: '10px', marginTop: '4px', whiteSpace: 'nowrap', fontWeight: isCurrent ? 600 : 400, color: isDone ? '#16a34a' : isCurrent ? '#2563eb' : BG.muted }}>
                     {s.label}
                   </span>
                 </div>
                 {i < arr.length - 1 && (
-                  <div
-                    className={`h-0.5 w-6 mx-1 mb-5 transition-all ${
-                      sIndex < currentIndex ? 'bg-green-400' : 'bg-gray-200'
-                    }`}
-                  />
+                  <div style={{ height: '2px', width: '20px', margin: '0 2px 18px', background: sIndex < currentIndex ? '#22c55e' : BG.border, transition: 'background 0.2s' }} />
                 )}
               </div>
             )
@@ -92,9 +88,7 @@ export default function StatusIndicator({ step, errorMessage }: Props) {
         </div>
       )}
 
-      {/* Current status message — written to set accurate time expectations rather than
-          leaving the user guessing whether the app has frozen. */}
-      <div className="mt-3 text-xs text-gray-500">
+      <div style={{ marginTop: '10px', fontSize: '11px', color: BG.subtext }}>
         {step === 'upload' && 'Waiting for file upload'}
         {step === 'inspect' && 'Dataset loaded — enter your research question below'}
         {step === 'question' && 'Ready to generate analysis'}
@@ -104,6 +98,8 @@ export default function StatusIndicator({ step, errorMessage }: Props) {
         {step === 'complete' && 'Analysis complete — see results below. All statistical values were computed by R.'}
         {step === 'error' && 'Check error details below'}
       </div>
+
+      <style>{`@keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }`}</style>
     </div>
   )
 }
