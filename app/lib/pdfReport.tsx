@@ -339,20 +339,27 @@ export async function downloadHistoryReportAsPdf(record: {
   ai_interpretation: string
   r_script: string
   raw_output: string
+  plan_json?: Record<string, unknown> | null
 }): Promise<void> {
+  // Use stored plan_json if available — byte-perfect.
+  // Fall back to synthetic plan for older records without plan_json.
+  const plan: AnalysisPlan = record.plan_json
+    ? (record.plan_json as unknown as AnalysisPlan)
+    : {
+        researchQuestion: record.research_question,
+        hypothesis: '',
+        dependentVariable: null,
+        independentVariable: null,
+        additionalVariables: [],
+        selectedTest: record.selected_test as AnalysisPlan['selectedTest'],
+        testRationale: '',
+        assumptions: [],
+        followUpQuestions: [],
+        planSummary: '',
+      }
+
   const syntheticResult: AnalysisResult = {
-    plan: {
-      researchQuestion: record.research_question,
-      hypothesis: '',
-      dependentVariable: null,
-      independentVariable: null,
-      additionalVariables: [],
-      selectedTest: record.selected_test as AnalysisPlan['selectedTest'],
-      testRationale: '',
-      assumptions: [],
-      followUpQuestions: [],
-      planSummary: '',
-    },
+    plan,
     rScript: record.r_script,
     execution: {
       success: record.execution_success,
