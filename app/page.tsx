@@ -57,6 +57,13 @@ function HomeContent() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
   // Email notification preference — persisted to localStorage
   const [emailNotify, setEmailNotify] = useState(false)
+  // Analysis templates
+  const [templates, setTemplates] = useState<{ id: string; name: string; research_question: string; hypothesis: string; selected_test: string }[]>([])
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateSaved, setTemplateSaved] = useState(false)
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
 
   useEffect(() => {
     fetch('/api/usage').then(r => r.json()).then(data => { if (data.success) setUsage(data) }).catch(() => {})
@@ -65,6 +72,11 @@ function HomeContent() {
     setOnboarding(loadOnboardingState())
     setOnboardingDismissed(localStorage.getItem('joanresearchos_onboarding_dismissed') === 'true')
     setEmailNotify(localStorage.getItem('joanresearchos_email_notify') === 'true')
+    // Load templates from Supabase
+    fetch('/api/templates')
+      .then(r => r.json())
+      .then(d => { if (d.success) setTemplates(d.templates) })
+      .catch(() => {})
   }, [])
 
   async function handleFileUpload(file: File, isDemo = false) {
@@ -106,6 +118,13 @@ function HomeContent() {
     e.preventDefault(); setIsDragging(false)
     const file = e.dataTransfer.files?.[0]; if (file) handleFileUpload(file, false)
   }
+
+  useEffect(() => {
+    if (!showTemplateDropdown) return
+    function handleClick() { setShowTemplateDropdown(false) }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [showTemplateDropdown])
 
   async function planAnalysis() {
     if (!datasetSummary || !researchQuestion.trim()) return
@@ -199,6 +218,48 @@ function HomeContent() {
 
   function backToQuestion() {
     setPendingPlan(null); setAssumptionResult(null); setStep('inspect')
+  }
+
+  async function saveTemplate() {
+    if (!researchQuestion.trim() || !templateName.trim()) return
+    setSavingTemplate(true)
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: templateName.trim(),
+          research_question: researchQuestion.trim(),
+          hypothesis: hypothesis.trim(),
+          selected_test: pendingPlan?.plan?.selectedTest || '',
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setTemplateSaved(true)
+        setShowSaveTemplate(false)
+        setTemplateName('')
+        setTimeout(() => setTemplateSaved(false), 2000)
+        // Refresh template list
+        fetch('/api/templates').then(r => r.json()).then(d => { if (d.success) setTemplates(d.templates) })
+      }
+    } catch {}
+    finally { setSavingTemplate(false) }
+  }
+
+  async function deleteTemplate(id: string) {
+    await fetch('/api/templates', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  function loadTemplate(template: typeof templates[0]) {
+    setResearchQuestion(template.research_question)
+    setHypothesis(template.hypothesis || '')
+    setShowTemplateDropdown(false)
   }
 
   async function handleSignOut() { await supabase.auth.signOut(); window.location.href = '/login' }
@@ -365,7 +426,48 @@ function HomeContent() {
 
         {datasetSummary && (
           <section>
-            <h2 className="text-sm font-semibold mb-2" style={{ color: '#aab4d4' }}>3. Research Question</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold" style={{ color: '#aab4d4' }}>3. Research Question</h2>
+              <div className="flex items-center gap-2">
+                {/* Load template dropdown */}
+                {templates.length > 0 && (
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                      className="text-xs px-2.5 py-1.5 rounded font-medium"
+                      style={{ color: '#c4b5fd', background: 'rgba(124,92,255,0.1)', border: '1px solid rgba(124,92,255,0.3)' }}
+                    >
+                      📋 Templates ({templates.length})
+                    </button>
+                    {showTemplateDropdown && (
+                      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '4px', width: '280px', background: 'rgba(13,20,40,0.95)', backdropFilter: 'blur(16px)', border: '1px solid rgba(124,92,255,0.3)', borderRadius: '10px', zIndex: 50, overflow: 'hidden' }}>
+                        <div style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                          <p style={{ fontSize: '11px', color: '#6b7aa3', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Saved Templates</p>
+                        </div>
+                        <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                          {templates.map(t => (
+                            <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: '8px' }}>
+                              <button
+                                onClick={() => loadTemplate(t)}
+                                style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                              >
+                                <p style={{ fontSize: '12px', fontWeight: 600, color: '#e8ecf5', margin: '0 0 2px' }}>{t.name}</p>
+                                <p style={{ fontSize: '11px', color: '#6b7aa3', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{t.research_question}</p>
+                              </button>
+                              <button
+                                onClick={() => deleteTemplate(t.id)}
+                                style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
+                                title="Delete template"
+                              >✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="rounded-lg p-4 space-y-4" style={{ background: 'rgba(18,26,48,0.6)', backdropFilter: 'blur(16px)', border: '1px solid rgba(124,92,255,0.2)' }}>
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: '#cdd8ff' }}>What do you want to find out?</label>
@@ -390,6 +492,49 @@ function HomeContent() {
                 <label className="block text-sm font-medium mb-1" style={{ color: '#cdd8ff' }}>Hypothesis <span className="font-normal" style={{ color: '#6b7aa3' }}>(optional)</span></label>
                 <textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="e.g. Cases peaked in week 2." rows={2} className="w-full rounded px-3 py-2 text-sm resize-none focus:outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', color: '#e8ecf5' }} />
               </div>
+
+              {/* Save as template */}
+              {researchQuestion.trim().length > 10 && (
+                <div>
+                  {showSaveTemplate ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        placeholder="Template name (e.g. Weekly COVID Surveillance)"
+                        className="flex-1 rounded px-3 py-1.5 text-xs focus:outline-none"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', color: '#e8ecf5' }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveTemplate(); if (e.key === 'Escape') setShowSaveTemplate(false) }}
+                        autoFocus
+                      />
+                      <button
+                        onClick={saveTemplate}
+                        disabled={savingTemplate || !templateName.trim()}
+                        className="text-xs px-3 py-1.5 rounded font-semibold disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #7c5cff, #2e75b6)', color: '#fff' }}
+                      >
+                        {savingTemplate ? '…' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => { setShowSaveTemplate(false); setTemplateName('') }}
+                        className="text-xs px-2 py-1.5 rounded"
+                        style={{ color: '#6b7aa3', border: '1px solid rgba(255,255,255,0.1)' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSaveTemplate(true)}
+                      className="text-xs font-medium"
+                      style={{ color: templateSaved ? '#86efac' : '#8b9bc4', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      {templateSaved ? '✓ Template saved' : '+ Save as template'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         )}
