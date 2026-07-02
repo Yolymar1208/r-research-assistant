@@ -14,6 +14,12 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  function getRedirect(): string {
+    if (typeof window === 'undefined') return '/'
+    const params = new URLSearchParams(window.location.search)
+    return params.get('redirect') || '/'
+  }
+
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -23,7 +29,7 @@ export default function RegisterPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(getRedirect())}` },
     })
     setLoading(false)
     if (error) { setError(error.message) } else { setSuccess(true) }
@@ -33,7 +39,7 @@ export default function RegisterPage() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(getRedirect())}` },
     })
     if (error) { setError(error.message); setLoading(false) }
   }
