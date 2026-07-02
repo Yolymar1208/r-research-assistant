@@ -82,6 +82,10 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
   const [interpretation, setInterpretation] = useState(result.aiInterpretation || '')
   const [isReinterpreting, setIsReinterpreting] = useState(false)
   const [reinterpretError, setReinterpretError] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [isSharing, setIsSharing] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [shareError, setShareError] = useState(false)
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'plan', label: 'Analysis Plan' },
@@ -147,6 +151,38 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
     }
   }
 
+  async function shareAnalysis() {
+    if (shareUrl) {
+      // Already have a link — just copy it again
+      await navigator.clipboard.writeText(shareUrl)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+      return
+    }
+    setIsSharing(true)
+    setShareError(false)
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, datasetName }),
+      })
+      const data = await res.json()
+      if (data.success && data.shareUrl) {
+        setShareUrl(data.shareUrl)
+        await navigator.clipboard.writeText(data.shareUrl)
+        setShareCopied(true)
+        setTimeout(() => setShareCopied(false), 2000)
+      } else {
+        setShareError(true)
+      }
+    } catch {
+      setShareError(true)
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
   const EPI_TESTS = ['epidemic_curve', 'attack_rate_table', 'age_sex_pyramid', 'survival_analysis', 'moving_average']
   const isEpiTest = EPI_TESTS.includes(result.plan.selectedTest)
 
@@ -192,8 +228,23 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
             {isGeneratingPdf ? 'Preparing PDF…' : '↓ PDF Report'}
           </button>
           <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium whitespace-nowrap">↓ QGIS CSV</button>
+          <button
+            onClick={shareAnalysis}
+            disabled={isSharing}
+            className="text-xs px-3 py-1.5 rounded font-medium whitespace-nowrap disabled:opacity-60"
+            style={shareUrl
+              ? { background: '#7c5cff', color: '#fff' }
+              : { background: 'rgba(124,92,255,0.1)', color: '#7c5cff', border: '1px solid rgba(124,92,255,0.4)' }}
+          >
+            {isSharing ? 'Creating link…' : shareCopied ? '✓ Link copied!' : shareUrl ? '🔗 Copy link' : '🔗 Share'}
+          </button>
         </div>
       </div>
+      {shareError && (
+        <div className="px-4 py-2 border-b text-xs" style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.3)', color: '#fca5a5' }}>
+          Could not create share link. Make sure you're logged in and try again.
+        </div>
+      )}
       {pdfError && (
         <div className="px-4 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
           Couldn't generate the PDF. Please try again — if it keeps failing, the R Script and Raw Output tabs always work as a backup.
