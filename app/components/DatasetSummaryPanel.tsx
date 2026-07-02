@@ -2,55 +2,57 @@
 
 import type { DatasetSummary } from '@/app/types'
 
-// warnings is optional and may not be present on summaries from older sessions
-// or other call sites — same pattern as storagePath elsewhere in the codebase.
 type SummaryWithWarnings = DatasetSummary & { warnings?: string[] }
 
 interface Props {
   summary: SummaryWithWarnings
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  numeric: 'bg-blue-100 text-blue-800',
-  integer: 'bg-indigo-100 text-indigo-800',
-  character: 'bg-green-100 text-green-800',
-  logical: 'bg-purple-100 text-purple-800',
-  date: 'bg-orange-100 text-orange-800',
-  unknown: 'bg-gray-100 text-gray-600',
+const BG = {
+  panel:    'rgba(240,244,250,0.97)',
+  header:   'rgba(228,236,248,0.95)',
+  rowEven:  'rgba(240,244,250,0.97)',
+  rowOdd:   'rgba(232,239,250,0.95)',
+  border:   'rgba(180,200,230,0.5)',
+  text:     '#1a2a3a',
+  subtext:  '#4a6080',
+  muted:    '#8098b8',
+}
+
+const TYPE_BADGES: Record<string, { bg: string; text: string }> = {
+  numeric:   { bg: 'rgba(96,165,250,0.15)',  text: '#1d4ed8' },
+  integer:   { bg: 'rgba(124,92,255,0.15)',  text: '#5b21b6' },
+  character: { bg: 'rgba(34,197,94,0.15)',   text: '#166534' },
+  logical:   { bg: 'rgba(168,85,247,0.15)',  text: '#7e22ce' },
+  date:      { bg: 'rgba(251,146,60,0.15)',  text: '#9a3412' },
+  unknown:   { bg: 'rgba(148,163,184,0.15)', text: '#475569' },
 }
 
 export default function DatasetSummaryPanel({ summary }: Props) {
   const warnings = summary.warnings ?? []
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {/* Header stats */}
-      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-        <h2 className="font-semibold text-gray-900 text-sm">Dataset Summary</h2>
-        <div className="flex gap-6 mt-1 text-sm text-gray-600">
-          <span>
-            <span className="font-medium text-gray-900">{summary.rowCount.toLocaleString()}</span> rows
-          </span>
-          <span>
-            <span className="font-medium text-gray-900">{summary.columnCount}</span> columns
-          </span>
-          <span className="text-gray-400">{summary.fileName}</span>
+    <div style={{ border: `1px solid ${BG.border}`, borderRadius: '8px', overflow: 'hidden', background: BG.panel }}>
+      <div style={{ background: BG.header, padding: '10px 16px', borderBottom: `1px solid ${BG.border}` }}>
+        <p style={{ fontWeight: 700, color: BG.text, fontSize: '13px', margin: '0 0 4px' }}>Dataset Summary</p>
+        <div style={{ display: 'flex', gap: '20px', fontSize: '13px', color: BG.subtext }}>
+          <span><strong style={{ color: BG.text }}>{summary.rowCount.toLocaleString()}</strong> rows</span>
+          <span><strong style={{ color: BG.text }}>{summary.columnCount}</strong> columns</span>
+          <span style={{ color: BG.muted }}>{summary.fileName}</span>
         </div>
       </div>
 
-      {/* Data quality warnings — non-blocking, but the user should see these
-          before spending an analysis credit on a doomed dataset. */}
       {warnings.length > 0 && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
-          <div className="flex items-start gap-2">
-            <span className="text-amber-500 mt-0.5">⚠</span>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-amber-800 mb-1">
+        <div style={{ background: 'rgba(254,243,199,0.95)', borderBottom: `1px solid rgba(253,230,138,0.6)`, padding: '10px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <span style={{ color: '#d97706', marginTop: '1px', flexShrink: 0 }}>⚠</span>
+            <div>
+              <p style={{ fontSize: '11px', fontWeight: 700, color: '#92400e', margin: '0 0 4px' }}>
                 {warnings.length === 1 ? 'Data quality note' : `${warnings.length} data quality notes`}
               </p>
-              <ul className="space-y-1">
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {warnings.map((w, i) => (
-                  <li key={i} className="text-xs text-amber-700 leading-relaxed">{w}</li>
+                  <li key={i} style={{ fontSize: '11px', color: '#78350f', lineHeight: 1.5, marginBottom: '2px' }}>{w}</li>
                 ))}
               </ul>
             </div>
@@ -58,83 +60,65 @@ export default function DatasetSummaryPanel({ summary }: Props) {
         </div>
       )}
 
-      {/* Column table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-4 py-2 font-medium text-gray-600">Column</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-600">R Name</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-600">Type</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Missing</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Unique</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-600">Sample Values</th>
+            <tr style={{ background: BG.header }}>
+              {['Column', 'R Name', 'Type', 'Missing', 'Unique', 'Sample Values'].map((h, i) => (
+                <th key={h} style={{ padding: '8px 14px', fontWeight: 600, color: BG.subtext, textAlign: i >= 3 && i <= 4 ? 'right' : 'left', borderBottom: `1px solid ${BG.border}`, whiteSpace: 'nowrap', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {summary.columns.map((col, i) => (
-              <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">
-                  {col.name}
-                </td>
-                <td className="px-4 py-2 font-mono text-xs text-gray-500 whitespace-nowrap">
-                  {col.cleanName}
-                </td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                      TYPE_COLORS[col.detectedType] || TYPE_COLORS.unknown
-                    }`}
-                  >
-                    {col.detectedType}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right text-gray-600">
-                  {col.missingCount > 0 ? (
-                    <span className={`font-medium ${col.missingPercent >= 50 ? 'text-red-600' : 'text-amber-600'}`}>
-                      {col.missingCount} ({col.missingPercent}%)
+            {summary.columns.map((col, i) => {
+              const badge = TYPE_BADGES[col.detectedType] || TYPE_BADGES.unknown
+              const isMissing = col.missingCount > 0
+              const isHighMissing = col.missingPercent >= 50
+              return (
+                <tr key={i} style={{ background: i % 2 === 0 ? BG.rowEven : BG.rowOdd, borderBottom: `1px solid ${BG.border}` }}>
+                  <td style={{ padding: '7px 14px', fontWeight: 600, color: BG.text, whiteSpace: 'nowrap' }}>{col.name}</td>
+                  <td style={{ padding: '7px 14px', fontFamily: 'monospace', fontSize: '11px', color: BG.muted, whiteSpace: 'nowrap' }}>{col.cleanName}</td>
+                  <td style={{ padding: '7px 14px' }}>
+                    <span style={{ background: badge.bg, color: badge.text, padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>
+                      {col.detectedType}
                     </span>
-                  ) : (
-                    <span className="text-gray-400">0</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 text-right text-gray-600">{col.uniqueCount}</td>
-                <td className="px-4 py-2 text-gray-500 text-xs">
-                  {col.sample
-                    .filter((v) => v !== null)
-                    .slice(0, 3)
-                    .map(String)
-                    .join(', ')}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td style={{ padding: '7px 14px', textAlign: 'right', color: isHighMissing ? '#dc2626' : isMissing ? '#d97706' : BG.muted, fontWeight: isMissing ? 600 : 400 }}>
+                    {col.missingCount > 0 ? `${col.missingCount} (${col.missingPercent}%)` : <span style={{ color: BG.muted }}>0</span>}
+                  </td>
+                  <td style={{ padding: '7px 14px', textAlign: 'right', color: BG.subtext }}>{col.uniqueCount}</td>
+                  <td style={{ padding: '7px 14px', color: BG.muted, fontSize: '11px' }}>
+                    {col.sample.filter(v => v !== null).slice(0, 3).map(String).join(', ')}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Data preview */}
       {summary.preview.length > 0 && (
-        <details className="border-t border-gray-200">
-          <summary className="px-4 py-2 bg-gray-50 text-sm text-gray-600 cursor-pointer hover:bg-gray-100 select-none">
+        <details style={{ borderTop: `1px solid ${BG.border}` }}>
+          <summary style={{ padding: '8px 16px', background: BG.header, fontSize: '12px', color: BG.subtext, cursor: 'pointer', userSelect: 'none' }}>
             ▸ Preview (first {summary.preview.length} rows)
           </summary>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
               <thead>
-                <tr className="bg-gray-100 border-b border-gray-200">
-                  {Object.keys(summary.preview[0]).map((key) => (
-                    <th key={key} className="text-left px-3 py-1.5 font-medium text-gray-600 whitespace-nowrap">
-                      {key}
-                    </th>
+                <tr style={{ background: BG.header, borderBottom: `1px solid ${BG.border}` }}>
+                  {Object.keys(summary.preview[0]).map(key => (
+                    <th key={key} style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 600, color: BG.subtext, whiteSpace: 'nowrap' }}>{key}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {summary.preview.map((row, i) => (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? BG.rowEven : BG.rowOdd }}>
                     {Object.values(row).map((val, j) => (
-                      <td key={j} className="px-3 py-1.5 text-gray-700 whitespace-nowrap">
-                        {val === null ? <span className="text-gray-300">—</span> : String(val)}
+                      <td key={j} style={{ padding: '5px 12px', color: val === null ? BG.muted : BG.text, whiteSpace: 'nowrap' }}>
+                        {val === null ? '—' : String(val)}
                       </td>
                     ))}
                   </tr>
