@@ -53,9 +53,6 @@ interface ExecuteResponse {
   error?: string
 }
 
-// Heuristics for "this probably failed because Render was asleep/cold", as
-// opposed to "the R script itself has a real error". Network-layer failures
-// and empty output on the first attempt are the telltale signs of a cold start.
 function looksLikeColdStartFailure(execution: RExecutionResult): boolean {
   const msg = (execution.errorMessage || '').toLowerCase()
   const emptyOutput = !execution.rawOutput || execution.rawOutput.trim().length === 0
@@ -74,10 +71,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       return NextResponse.json({ success: false, error: 'R script is required.' }, { status: 400 })
     }
 
-    // Get a fresh signed URL from Supabase Storage and inject into R script.
-    // Note: this is regenerated on every execute call, so there is no expiry
-    // risk even if the user sits on the question screen for hours — only the
-    // dataset's presence in Storage matters, not the age of any prior URL.
     let finalScript = rScript
     if (storagePath) {
       const signedUrl = await getSignedUrl(storagePath)
@@ -89,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
         console.log('[Execute-R] Injected download.file() — storagePath:', storagePath)
       } else {
         console.warn('[Execute-R] Could not generate signed URL for:', storagePath)
-        return NextResponse.json({ success: false, error: 'Could not access your dataset in storage. Please re-upload the file and try again.' }, { status: 400 })
+        return NextResponse.json({ success: false, error: 'Could not access dataset. Please re-upload the file.' }, { status: 400 })
       }
     } else {
       console.warn('[Execute-R] No storagePath — file will not be found on Render')
@@ -104,11 +97,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     console.log('[Execute-R API] Running R script (attempt 1)...')
     let execution = await executeRScript(finalScript, excelFilePath || '')
 
-    // Render free tier can still be mid-wake even after wakeRApi() resolves.
-    // If the first attempt looks like a cold-start failure rather than a real
-    // script error, wake again and retry exactly once before giving up.
     if (!execution.success && looksLikeColdStartFailure(execution)) {
-      console.log('[Execute-R API] First attempt looked like a cold start — retrying once...')
+      console.log('[Execute-R API] Cold start suspected — retrying once...')
       if (process.env.R_API_URL) await wakeRApi()
       await new Promise((resolve) => setTimeout(resolve, 3000))
       execution = await executeRScript(finalScript, excelFilePath || '')
@@ -118,8 +108,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       console.error('[Execute-R] R failed. Output:', execution.rawOutput?.slice(0, 500))
       console.error('[Execute-R] Error:', execution.errorMessage)
       const friendlyError = looksLikeColdStartFailure(execution)
-        ? 'The analysis engine is taking longer than usual to respond. This can happen during periods of low traffic. Please try again in about 30 seconds.'
-        : String(execution.errorMessage || 'R execution failed. Check the Raw R Output tab for details.')
+        ? 'The analysis engine is taking longer than usual to respond. Please try again in about 30 seconds.'
+        : String(execution.errorMessage || 'R execution failed.')
       return NextResponse.json({ success: false, execution, error: friendlyError })
     }
 
@@ -135,6 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       rScript,
       rawOutput: execution.rawOutput,
       executionSuccess: execution.success,
+      plan, // stored as plan_json JSONB for byte-perfect PDF regeneration from history
     }).catch(console.error)
 
     return NextResponse.json({ success: true, execution, interpretation })
