@@ -153,10 +153,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
 
   async function shareAnalysis() {
     if (shareUrl) {
-      // Already have a link — just copy it again
-      await navigator.clipboard.writeText(shareUrl)
-      setShareCopied(true)
-      setTimeout(() => setShareCopied(false), 2000)
+      copyToClipboard(shareUrl)
       return
     }
     setIsSharing(true)
@@ -170,9 +167,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
       const data = await res.json()
       if (data.success && data.shareUrl) {
         setShareUrl(data.shareUrl)
-        await navigator.clipboard.writeText(data.shareUrl)
-        setShareCopied(true)
-        setTimeout(() => setShareCopied(false), 2000)
+        copyToClipboard(data.shareUrl)
       } else {
         setShareError(true)
       }
@@ -180,6 +175,41 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
       setShareError(true)
     } finally {
       setIsSharing(false)
+    }
+  }
+
+  function copyToClipboard(text: string) {
+    // Try modern clipboard API first, fall back to execCommand
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        setShareCopied(true)
+        setTimeout(() => setShareCopied(false), 2000)
+      }).catch(() => {
+        // Clipboard API failed — try fallback
+        fallbackCopy(text)
+      })
+    } else {
+      fallbackCopy(text)
+    }
+  }
+
+  function fallbackCopy(text: string) {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    try {
+      document.execCommand('copy')
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    } catch {
+      // Both methods failed — still show the link was created, not an error
+      setShareCopied(false)
+    } finally {
+      document.body.removeChild(ta)
     }
   }
 
@@ -240,6 +270,13 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
           </button>
         </div>
       </div>
+      {shareUrl && !shareCopied && (
+        <div className="px-4 py-2 border-b text-xs flex items-center gap-2" style={{ background: 'rgba(124,92,255,0.06)', borderColor: 'rgba(124,92,255,0.2)', color: '#c4b5fd' }}>
+          <span>🔗 Share link ready:</span>
+          <span className="font-mono truncate flex-1" style={{ color: '#8fb4ff' }}>{shareUrl}</span>
+          <button onClick={() => copyToClipboard(shareUrl)} className="flex-shrink-0 font-semibold" style={{ color: '#c4b5fd' }}>Copy</button>
+        </div>
+      )}
       {shareError && (
         <div className="px-4 py-2 border-b text-xs" style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.3)', color: '#fca5a5' }}>
           Could not create share link. Make sure you're logged in and try again.
