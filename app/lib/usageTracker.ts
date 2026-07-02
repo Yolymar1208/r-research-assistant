@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/app/lib/supabase-server'
+import type { AnalysisPlan } from '@/app/types'
 
 const FREE_LIMIT = 5
 
@@ -110,6 +111,9 @@ export async function saveAnalysisHistory(
     rScript: string
     rawOutput: string
     executionSuccess: boolean
+    // Full plan object — stored as JSONB for byte-perfect PDF regeneration from history.
+    // Added after ALTER TABLE analysis_history ADD COLUMN plan_json JSONB (2026-07-02).
+    plan?: AnalysisPlan
   }
 ): Promise<void> {
   await supabaseAdmin.from('analysis_history').insert({
@@ -122,6 +126,8 @@ export async function saveAnalysisHistory(
     r_script: data.rScript,
     raw_output: data.rawOutput,
     execution_success: data.executionSuccess,
+    // Store full plan as JSONB if available — enables byte-perfect PDF re-download from history
+    plan_json: data.plan ? (data.plan as unknown as Record<string, unknown>) : null,
   })
 }
 
