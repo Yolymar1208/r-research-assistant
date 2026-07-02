@@ -19,6 +19,11 @@ const TEST_LABELS: Record<string, string> = {
   mcnemar: "McNemar's Test",
   logistic_regression: 'Logistic Regression',
   linear_regression: 'Multiple Linear Regression',
+  epidemic_curve: 'Epidemic Curve',
+  attack_rate_table: 'Attack Rate Table',
+  age_sex_pyramid: 'Age-Sex Pyramid',
+  survival_analysis: 'Survival Analysis',
+  moving_average: 'Moving Average (7-day)',
 }
 
 function escapeHtml(str: string): string {
@@ -64,7 +69,7 @@ function generateReportHTML(result: AnalysisResult, datasetName: string): string
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Statistical Analysis Report</title>
+  <title>Statistical Analysis Report — JOANResearchOS</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -152,7 +157,7 @@ function generateReportHTML(result: AnalysisResult, datasetName: string): string
 
   <div class="report-header">
     <div class="header-top">
-      <div class="institution">R Research Assistant · Statistical Analysis Platform</div>
+      <div class="institution">JOANResearchOS · Statistical Analysis Platform</div>
       <div class="report-type">Analysis Report</div>
     </div>
     <div class="report-title">Statistical Analysis Report</div>
@@ -186,20 +191,18 @@ function generateReportHTML(result: AnalysisResult, datasetName: string): string
 
   <div class="section">
     <div class="section-title">2. Analysis Plan</div>
-    <p>${escapeHtml(result.plan.planSummary)}</p>
-    <p><strong>Test rationale:</strong> ${escapeHtml(result.plan.testRationale)}</p>
-    <br>
+    <p>${escapeHtml(result.plan.planSummary || '')}</p>
+    ${result.plan.testRationale ? `<p><strong>Test rationale:</strong> ${escapeHtml(result.plan.testRationale)}</p><br>` : ''}
     <table>
       <tr><th>Parameter</th><th>Value</th></tr>
       <tr><td>Statistical Test</td><td>${escapeHtml(testLabel)}</td></tr>
       <tr><td>Dependent Variable</td><td>${escapeHtml(result.plan.dependentVariable || 'N/A')}</td></tr>
       <tr><td>Independent Variable</td><td>${escapeHtml(result.plan.independentVariable || 'N/A')}</td></tr>
-      ${result.plan.additionalVariables.length > 0 ? `<tr><td>Additional Variables</td><td>${escapeHtml(result.plan.additionalVariables.join(', '))}</td></tr>` : ''}
+      ${result.plan.additionalVariables?.length > 0 ? `<tr><td>Additional Variables</td><td>${escapeHtml(result.plan.additionalVariables.join(', '))}</td></tr>` : ''}
       <tr><td>R Execution Time</td><td>${result.execution.executionTimeMs}ms</td></tr>
       <tr><td>Execution Status</td><td>${result.execution.success ? '✓ Successful' : '✗ Failed'}</td></tr>
     </table>
-    <strong>Statistical Assumptions:</strong>
-    <ul class="assumptions-list">${assumptions}</ul>
+    ${assumptions ? `<strong>Statistical Assumptions:</strong><ul class="assumptions-list">${assumptions}</ul>` : ''}
   </div>
 
   <div class="section">
@@ -232,7 +235,7 @@ function generateReportHTML(result: AnalysisResult, datasetName: string): string
 
   <div class="report-footer">
     <div>
-      <div class="footer-brand">R Research Assistant</div>
+      <div class="footer-brand">JOANResearchOS</div>
       <div>Statistical Engine: R · AI: Claude by Anthropic</div>
     </div>
     <div style="text-align:right;">
