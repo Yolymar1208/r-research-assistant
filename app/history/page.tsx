@@ -48,6 +48,7 @@ interface HistoryRecord {
   ai_interpretation: string
   r_script: string
   raw_output: string
+  plan_json?: Record<string, unknown> | null
 }
 
 type StatusFilter = 'all' | 'success' | 'failed'
@@ -124,7 +125,13 @@ export default function HistoryPage() {
     setGeneratingReportId(record.id)
     setReportErrorId(null)
     try {
-      await downloadHistoryReportAsPdf(record)
+      // Use stored plan_json if available (analyses run after 2026-07-02) for
+      // byte-perfect PDF regeneration. Fall back to best-effort reconstruction
+      // for older history rows that don't have plan_json.
+      const enrichedRecord = record.plan_json
+        ? { ...record, plan_json: record.plan_json }
+        : record
+      await downloadHistoryReportAsPdf(enrichedRecord)
     } catch {
       setReportErrorId(record.id)
     } finally {
