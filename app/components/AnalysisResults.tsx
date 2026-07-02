@@ -243,7 +243,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3 flex-wrap ${result.execution.success ? 'bg-green-50' : 'bg-red-50'}`}>
+      <div className={`px-4 py-3 border-b flex items-center justify-between gap-3 flex-wrap`} style={{ background: result.execution.success ? 'rgba(220,252,231,0.95)' : 'rgba(254,226,226,0.95)', borderColor: result.execution.success ? 'rgba(134,239,172,0.5)' : 'rgba(252,165,165,0.5)' }}>
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <span className={`text-sm font-medium whitespace-nowrap ${result.execution.success ? 'text-green-800' : 'text-red-800'}`}>
             {result.execution.success ? '✓ Analysis Complete' : '✗ R Execution Failed'}
@@ -278,19 +278,19 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
         </div>
       )}
       {shareError && (
-        <div className="px-4 py-2 border-b text-xs" style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.3)', color: '#fca5a5' }}>
+        <div className="px-4 py-2 border-b text-xs" style={{ background: 'rgba(254,242,242,0.97)', borderColor: 'rgba(252,165,165,0.5)', color: '#991b1b' }}>
           Could not create share link. Make sure you're logged in and try again.
         </div>
       )}
       {pdfError && (
-        <div className="px-4 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
+        <div className="px-4 py-2 border-b text-xs" style={{ background: 'rgba(254,242,242,0.97)', borderColor: 'rgba(252,165,165,0.5)', color: '#991b1b' }}>
           Couldn't generate the PDF. Please try again — if it keeps failing, the R Script and Raw Output tabs always work as a backup.
         </div>
       )}
 
       {/* Provenance strip — the single most important trust signal in the app.
           Always visible, regardless of which tab is active. */}
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-gray-600">
+      <div className="px-4 py-2 border-b flex items-center gap-x-4 gap-y-1 flex-wrap text-xs" style={{ background: 'rgba(232,239,250,0.95)', borderColor: 'rgba(180,200,230,0.5)', color: '#4a6080' }}>
         <span className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           Statistics computed and verified by R
@@ -301,7 +301,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
         </span>
       </div>
 
-      <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
+      <div className="flex border-b overflow-x-auto" style={{ background: 'rgba(228,236,248,0.95)', borderColor: 'rgba(180,200,230,0.5)' }}>
         {tabs.map((tab) => {
           const s = SOURCE_STYLES[TAB_SOURCE[tab.key]]
           const isActive = activeTab === tab.key
@@ -320,31 +320,31 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
         })}
       </div>
 
-      <div className="p-4">
+      <div className="p-4" style={{ background: 'rgba(240,244,250,0.97)' }}>
         <div className="mb-3">
           <ProvenanceBadge source={activeSource} />
         </div>
 
         {activeTab === 'plan' && (
           <div className="space-y-4">
-            <div className="bg-violet-50 border border-violet-100 rounded p-3">
-              <p className="text-sm font-medium text-violet-900">Research Question</p>
-              <p className="text-sm text-violet-800 mt-1">{result.plan.researchQuestion}</p>
+            <div className="rounded p-3" style={{ background: 'rgba(124,92,255,0.08)', border: '1px solid rgba(124,92,255,0.2)' }}>
+              <p className="text-sm font-medium" style={{ color: '#5b21b6' }}>Research Question</p>
+              <p className="text-sm mt-1" style={{ color: '#3b0764' }}>{result.plan.researchQuestion}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><p className="font-medium text-gray-700">Statistical Test</p><p className="text-gray-900 mt-0.5">{TEST_LABELS[result.plan.selectedTest]}</p></div>
-              <div><p className="font-medium text-gray-700">Hypothesis</p><p className="text-gray-900 mt-0.5">{result.plan.hypothesis}</p></div>
-              {result.plan.dependentVariable && <div><p className="font-medium text-gray-700">Dependent Variable</p><p className="font-mono text-sm text-gray-900 mt-0.5">{result.plan.dependentVariable}</p></div>}
-              {result.plan.independentVariable && <div><p className="font-medium text-gray-700">Independent Variable</p><p className="font-mono text-sm text-gray-900 mt-0.5">{result.plan.independentVariable}</p></div>}
+              <div><p className="font-medium" style={{ color: '#4a6080' }}>Statistical Test</p><p className="mt-0.5" style={{ color: '#1a2a3a' }}>{TEST_LABELS[result.plan.selectedTest]}</p></div>
+              <div><p className="font-medium" style={{ color: '#4a6080' }}>Hypothesis</p><p className="mt-0.5" style={{ color: '#1a2a3a' }}>{result.plan.hypothesis}</p></div>
+              {result.plan.dependentVariable && <div><p className="font-medium" style={{ color: '#4a6080' }}>Dependent Variable</p><p className="font-mono text-sm mt-0.5" style={{ color: '#1a2a3a' }}>{result.plan.dependentVariable}</p></div>}
+              {result.plan.independentVariable && <div><p className="font-medium" style={{ color: '#4a6080' }}>Independent Variable</p><p className="font-mono text-sm mt-0.5" style={{ color: '#1a2a3a' }}>{result.plan.independentVariable}</p></div>}
             </div>
-            <div><p className="font-medium text-gray-700 text-sm">Rationale</p><p className="text-sm text-gray-700 mt-1">{result.plan.testRationale}</p></div>
-            <p className="text-xs text-gray-400 italic">This plan was proposed by AI before any computation occurred. No statistical values appear above.</p>
+            <div><p className="font-medium text-sm" style={{ color: '#4a6080' }}>Rationale</p><p className="text-sm mt-1" style={{ color: '#1a2a3a' }}>{result.plan.testRationale}</p></div>
+            <p className="text-xs italic" style={{ color: '#8098b8' }}>This plan was proposed by AI before any computation occurred. No statistical values appear above.</p>
           </div>
         )}
 
         {activeTab === 'rscript' && (
           <div>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs mb-2" style={{ color: '#4a6080' }}>
               Exact code executed on the R server. Download it above and re-run independently to verify any result.
             </p>
             <pre className="bg-gray-900 text-emerald-400 rounded p-4 text-xs overflow-x-auto leading-relaxed font-mono">
@@ -355,7 +355,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
 
         {activeTab === 'output' && (
           <div>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs mb-2" style={{ color: '#4a6080' }}>
               Unmodified console output returned by R. Every number in the AI Interpretation tab is quoted from this output.
             </p>
             <pre className="bg-gray-900 text-gray-100 rounded p-4 text-xs overflow-x-auto leading-relaxed font-mono whitespace-pre-wrap">
@@ -397,8 +397,8 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
               </div>
             )}
 
-            <div className="bg-violet-50 border border-violet-100 rounded p-3 mb-4">
-              <p className="text-xs text-violet-900">
+            <div className="rounded p-3 mb-4" style={{ background: 'rgba(124,92,255,0.08)', border: '1px solid rgba(124,92,255,0.2)' }}>
+              <p className="text-xs" style={{ color: '#5b21b6' }}>
                 {language === 'filipino'
                   ? 'Ang interpretasyong ito ay isinulat ng AI batay sa napatunayan na R output sa ibaba. Lahat ng numero ay direktang kinopya mula sa R — hindi tinantya ng AI.'
                   : 'This interpretation was written by AI in plain language, based entirely on the verified R output in the Raw R Output tab. No statistical value below was estimated or generated by AI — every number is quoted directly from R.'}
@@ -412,17 +412,17 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
                 ))}
               </div>
             ) : interpretation ? (
-              <div className="prose prose-sm max-w-none text-gray-800">
+              <div className="prose prose-sm max-w-none">
                 {interpretation.split('\n').map((line, i) => {
                   if (line.startsWith('**') && line.endsWith('**')) {
-                    return <h3 key={i} className="font-semibold text-gray-900 mt-4 mb-1 first:mt-0">{line.replace(/\*\*/g, '')}</h3>
+                    return <h3 key={i} className="font-semibold mt-4 mb-1 first:mt-0" style={{ color: '#1a2a3a' }}>{line.replace(/\*\*/g, '')}</h3>
                   }
                   if (line.trim() === '') return <br key={i} />
-                  return <p key={i} className="text-sm text-gray-700 mb-1">{line.replace(/\*\*([^*]+)\*\*/g, '$1')}</p>
+                  return <p key={i} className="text-sm mb-1" style={{ color: '#2a3a4a' }}>{line.replace(/\*\*([^*]+)\*\*/g, '$1')}</p>
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 italic">No interpretation available.</p>
+              <p className="text-sm italic" style={{ color: '#8098b8' }}>No interpretation available.</p>
             )}
           </div>
         )}
