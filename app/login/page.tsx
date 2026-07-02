@@ -12,6 +12,12 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  function getRedirect(): string {
+    if (typeof window === 'undefined') return '/'
+    const params = new URLSearchParams(window.location.search)
+    return params.get('redirect') || '/'
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -23,7 +29,7 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      window.location.href = '/'
+      window.location.href = getRedirect()
     }
   }
 
@@ -33,7 +39,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(getRedirect())}`,
       },
     })
     if (error) {
