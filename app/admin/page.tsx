@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase'
 import Starfield from '@/app/components/Starfield'
 
 const supabase = createClient()
+
+const ADMIN_EMAIL = 'yolymarorfiano@yahoo.com'
 
 interface UserRecord {
   id: string
@@ -12,63 +14,65 @@ interface UserRecord {
   plan: string
   analyses_limit: number
   created_at: string
-  plan_started_at: string | null
-  plan_expires_at: string | null
+  current_month_count?: number
 }
 
-interface UsageRecord {
-  user_id: string
-  analyses_count: number
-  month_year: string
-}
+const PLANS = [
+  { key: 'free',        label: 'Free',        price: '₱0',         color: '#6b7aa3',  bg: 'rgba(107,122,163,0.1)',  border: 'rgba(107,122,163,0.3)' },
+  { key: 'researcher',  label: 'Researcher',  price: '₱1,499/mo',  color: '#60a5fa',  bg: 'rgba(96,165,250,0.1)',   border: 'rgba(96,165,250,0.3)' },
+  { key: 'team',        label: 'Team',        price: '₱3,499/mo',  color: '#c4b5fd',  bg: 'rgba(124,92,255,0.1)',   border: 'rgba(124,92,255,0.3)' },
+  { key: 'institution', label: 'Institution', price: '₱8,999/mo',  color: '#e8b85c',  bg: 'rgba(232,184,92,0.1)',   border: 'rgba(232,184,92,0.3)' },
+]
 
-const ADMIN_EMAIL = 'yolymarorfiano@yahoo.com'
-
-const PLAN_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  free: { bg: 'rgba(107,114,128,0.15)', text: '#9ca3af', border: 'rgba(107,114,128,0.3)' },
-  pro: { bg: 'rgba(96,165,250,0.15)', text: '#60a5fa', border: 'rgba(96,165,250,0.3)' },
-  institution: { bg: 'rgba(124,92,255,0.15)', text: '#c4b5fd', border: 'rgba(124,92,255,0.3)' },
+const glass: React.CSSProperties = {
+  background: 'rgba(18,26,48,0.65)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: '1px solid rgba(124,92,255,0.2)',
+  borderRadius: '14px',
 }
 
 export default function AdminPage() {
-  const [users, setUsers] = useState<UserRecord[]>([])
-  const [usage, setUsage] = useState<UsageRecord[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [updating, setUpdating] = useState<string | null>(null)
-  const [currentUserEmail, setCurrentUserEmail] = useState('')
+  const [users, setUsers] = useState<UserRecord[]>([])
   const [search, setSearch] = useState('')
-  const [planFilter, setPlanFilter] = useState<string>('all')
-  const [successId, setSuccessId] = useState<string | null>(null)
+  const [filterPlan, setFilterPlan] = useState('all')
+  const [upgradingId, setUpgradingId] = useState<string | null>(null)
+  const [upgradeSuccess, setUpgradeSuccess] = useState<string | null>(null)
+  const [upgradeError, setUpgradeError] = useState<string | null>(null)
+  const [stats, setStats] = useState({ total: 0, free: 0, researcher: 0, team: 0, institution: 0, thisMonth: 0 })
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const email = data.user?.email || ''
-      setCurrentUserEmail(email)
-      if (email === ADMIN_EMAIL) {
-        loadData()
-      } else {
-        setError('Access denied. Admin only.')
-        setLoading(false)
-      }
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (data.user?.email !== ADMIN_EMAIL) { setLoading(false); return }
+      setIsAdmin(true)
+      await loadUsers()
+      setLoading(false)
     })
   }, [])
 
-  async function loadData() {
-    setLoading(true)
-    const [usersRes, usageRes] = await Promise.all([
-      fetch('/api/admin/users'),
-      fetch('/api/admin/usage'),
-    ])
-    const usersData = await usersRes.json()
-    const usageData = await usageRes.json()
-    if (usersData.success) setUsers(usersData.users)
-    if (usageData.success) setUsage(usageData.usage)
-    setLoading(false)
+  async function loadUsers() {
+    const res = await fetch('/api/admin/users')
+    const data = await res.json()
+    if (data.success) {
+      setUsers(data.users)
+      const u = data.users as UserRecord[]
+      setStats({
+        total: u.length,
+        free: u.filter(x => x.plan === 'free').length,
+        researcher: u.filter(x => x.plan === 'researcher').length,
+        team: u.filter(x => x.plan === 'team').length,
+        institution: u.filter(x => x.plan === 'institution').length,
+        thisMonth: u.reduce((sum, x) => sum + (x.current_month_count || 0), 0),
+      })
+    }
   }
 
   async function upgradePlan(userId: string, plan: string) {
-    setUpdating(userId)
+    setUpgradingId(userId)
+    setUpgradeSuccess(null)
+    setUpgradeError(null)
     const res = await fetch('/api/admin/upgrade', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,273 +80,201 @@ export default function AdminPage() {
     })
     const data = await res.json()
     if (data.success) {
-      setSuccessId(userId)
-      setTimeout(() => setSuccessId(null), 2000)
-      await loadData()
+      setUpgradeSuccess(`${data.label} activated`)
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan, analyses_limit: plan === 'free' ? 3 : 999999 } : u))
+      setTimeout(() => setUpgradeSuccess(null), 3000)
     } else {
-      alert('Failed to upgrade: ' + data.error)
+      setUpgradeError(data.error || 'Upgrade failed')
+      setTimeout(() => setUpgradeError(null), 4000)
     }
-    setUpdating(null)
+    setUpgradingId(null)
   }
 
-  const now = new Date()
-  const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const filtered = users.filter(u => {
+    const matchSearch = search === '' || u.email.toLowerCase().includes(search.toLowerCase())
+    const matchPlan = filterPlan === 'all' || u.plan === filterPlan
+    return matchSearch && matchPlan
+  })
 
-  function getUsageForUser(userId: string): number {
-    const record = usage.find(u => u.user_id === userId && u.month_year === monthYear)
-    return record?.analyses_count ?? 0
-  }
-
-  const totalAnalysesThisMonth = useMemo(() =>
-    usage.filter(u => u.month_year === monthYear).reduce((sum, u) => sum + u.analyses_count, 0),
-    [usage, monthYear]
-  )
-
-  const recentSignups = useMemo(() =>
-    [...users].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5),
-    [users]
-  )
-
-  const nearLimitUsers = useMemo(() =>
-    users.filter(u => {
-      if (u.plan !== 'free') return false
-      const count = getUsageForUser(u.id)
-      return count >= 4
-    }),
-    [users, usage]
-  )
-
-  const filteredUsers = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return users.filter(u => {
-      if (planFilter !== 'all' && u.plan !== planFilter) return false
-      if (q && !u.email.toLowerCase().includes(q)) return false
-      return true
-    })
-  }, [users, search, planFilter])
-
-  const glass = {
-    background: 'rgba(18, 26, 48, 0.65)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(124,92,255,0.2)',
-    borderRadius: '14px',
-  } as React.CSSProperties
+  const getPlanConfig = (plan: string) => PLANS.find(p => p.key === plan) || PLANS[0]
 
   if (loading) return (
-    <main style={{ minHeight: '100vh', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-      <Starfield />
-      <p style={{ color: '#8b9bc4', position: 'relative', zIndex: 1 }}>Loading admin dashboard…</p>
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#05070f' }}>
+      <p style={{ color: '#8b9bc4' }}>Verifying admin access…</p>
     </main>
   )
 
-  if (error) return (
-    <main style={{ minHeight: '100vh', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-      <Starfield />
-      <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <p style={{ color: '#fca5a5', fontSize: '18px', fontWeight: 700 }}>⛔ {error}</p>
-        <a href="/" style={{ color: '#8fb4ff', fontSize: '14px' }}>← Back to app</a>
-      </div>
+  if (!isAdmin) return (
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#05070f' }}>
+      <p style={{ color: '#fca5a5' }}>Access denied — admin only.</p>
     </main>
   )
 
   return (
-    <main style={{ minHeight: '100vh', position: 'relative', fontFamily: "'Inter', system-ui, sans-serif", padding: '2rem' }}>
+    <main style={{ minHeight: '100vh', position: 'relative', fontFamily: "'Inter', system-ui, sans-serif" }}>
       <Starfield />
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
-
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#f1f4fc', margin: '0 0 4px', fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif', letterSpacing: '-0.3px' }}>
-              Admin Dashboard
-            </h1>
-            <p style={{ color: '#6b7aa3', fontSize: '13px', margin: 0 }}>JOANResearchOS · {currentUserEmail}</p>
+      {/* Header */}
+      <header style={{ position: 'relative', zIndex: 10, background: 'rgba(13,20,40,0.7)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(124,92,255,0.18)', padding: '0 1.5rem' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #7c5cff, #2e75b6)' }}>
+              <span style={{ color: '#fff', fontWeight: 800, fontSize: '14px' }}>J</span>
+            </div>
+            <span style={{ color: '#f1f4fc', fontWeight: 700, fontSize: '15px' }}>JOANResearchOS</span>
+            <span style={{ color: '#e8b85c', fontSize: '12px', fontWeight: 700, background: 'rgba(232,184,92,0.1)', border: '1px solid rgba(232,184,92,0.3)', padding: '2px 8px', borderRadius: '8px' }}>ADMIN</span>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={loadData}
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontWeight: 600, color: '#aab4d4' }}
-            >
-              ↻ Refresh
-            </button>
-            <a href="/" style={{ background: 'linear-gradient(135deg, #7c5cff 0%, #2e75b6 100%)', color: '#fff', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', textDecoration: 'none', fontWeight: 600 }}>
-              ← Back to app
-            </a>
-          </div>
+          <a href="/" style={{ fontSize: '13px', color: '#8fb4ff', textDecoration: 'none', border: '1px solid rgba(124,92,255,0.3)', padding: '6px 14px', borderRadius: '8px' }}>← App</a>
         </div>
+      </header>
+
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '28px 1.5rem', position: 'relative', zIndex: 10 }}>
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginBottom: '24px' }}>
           {[
-            { label: 'Total Users', value: users.length, color: '#f1f4fc' },
-            { label: 'Free', value: users.filter(u => u.plan === 'free').length, color: '#9ca3af' },
-            { label: 'Pro', value: users.filter(u => u.plan === 'pro').length, color: '#60a5fa' },
-            { label: 'Institution', value: users.filter(u => u.plan === 'institution').length, color: '#c4b5fd' },
-            { label: 'Analyses This Month', value: totalAnalysesThisMonth, color: '#86efac' },
-            { label: 'Near Limit', value: nearLimitUsers.length, color: '#e8b85c' },
-          ].map((stat) => (
-            <div key={stat.label} style={{ ...glass, padding: '18px 20px' }}>
-              <p style={{ fontSize: '11px', color: '#6b7aa3', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{stat.label}</p>
-              <p style={{ fontSize: '30px', fontWeight: 800, color: stat.color, margin: 0, fontFamily: 'var(--font-space-grotesk), system-ui, sans-serif' }}>{stat.value}</p>
+            { label: 'Total users', value: stats.total, color: '#f1f4fc' },
+            { label: 'Free', value: stats.free, color: '#6b7aa3' },
+            { label: 'Researcher', value: stats.researcher, color: '#60a5fa' },
+            { label: 'Team', value: stats.team, color: '#c4b5fd' },
+            { label: 'Institution', value: stats.institution, color: '#e8b85c' },
+            { label: 'Analyses this month', value: stats.thisMonth, color: '#4ade80' },
+          ].map(s => (
+            <div key={s.label} style={{ ...glass, padding: '16px 20px' }}>
+              <p style={{ fontSize: '28px', fontWeight: 900, color: s.color, margin: '0 0 4px', fontFamily: 'var(--font-space-grotesk), system-ui' }}>{s.value}</p>
+              <p style={{ fontSize: '12px', color: '#6b7aa3', margin: 0 }}>{s.label}</p>
             </div>
           ))}
         </div>
 
-        {/* Near limit alert */}
-        {nearLimitUsers.length > 0 && (
-          <div style={{ ...glass, padding: '14px 18px', marginBottom: '20px', border: '1px solid rgba(232,184,92,0.35)', background: 'rgba(232,184,92,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: 700, color: '#e8b85c', margin: '0 0 8px' }}>
-              ⚡ {nearLimitUsers.length} free user{nearLimitUsers.length > 1 ? 's' : ''} at or near their limit — potential upgrade opportunity
-            </p>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {nearLimitUsers.map(u => (
-                <span key={u.id} style={{ fontSize: '12px', color: '#fbbf24', background: 'rgba(232,184,92,0.1)', border: '1px solid rgba(232,184,92,0.3)', padding: '3px 10px', borderRadius: '10px' }}>
-                  {u.email} ({getUsageForUser(u.id)}/5)
-                </span>
-              ))}
-            </div>
+        {/* Toast notifications */}
+        {upgradeSuccess && (
+          <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '10px', color: '#86efac', fontSize: '13px', fontWeight: 600 }}>
+            ✓ {upgradeSuccess}
+          </div>
+        )}
+        {upgradeError && (
+          <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '10px', color: '#fca5a5', fontSize: '13px' }}>
+            ✗ {upgradeError}
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start' }}>
+        {/* Filters */}
+        <div style={{ ...glass, padding: '16px 20px', marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Search by email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ flex: 1, minWidth: '200px', padding: '9px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#e8ecf5', fontSize: '13px', outline: 'none' }}
+          />
+          <select
+            value={filterPlan}
+            onChange={e => setFilterPlan(e.target.value)}
+            style={{ padding: '9px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(13,20,40,0.8)', color: '#e8ecf5', fontSize: '13px' }}
+          >
+            <option value="all">All plans</option>
+            {PLANS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+          <span style={{ fontSize: '12px', color: '#6b7aa3' }}>{filtered.length} users</span>
+        </div>
 
-          {/* Main users table */}
-          <div style={{ ...glass, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#f1f4fc', margin: 0, flex: 1 }}>All Users</h2>
-              <input
-                type="text"
-                placeholder="Search email…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{ fontSize: '13px', padding: '6px 10px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', background: 'rgba(255,255,255,0.04)', color: '#e8ecf5', outline: 'none', width: '180px' }}
-              />
-              <select
-                value={planFilter}
-                onChange={(e) => setPlanFilter(e.target.value)}
-                style={{ fontSize: '13px', padding: '6px 10px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', background: 'rgba(13,20,40,0.8)', color: '#e8ecf5' }}
-              >
-                <option value="all">All plans</option>
-                <option value="free">Free</option>
-                <option value="pro">Pro</option>
-                <option value="institution">Institution</option>
-              </select>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    {['Email', 'Plan', 'Usage', 'Joined', 'Change Plan'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#6b7aa3', borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: '12px', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#6b7aa3' }}>No users match your filters</td></tr>
-                  ) : filteredUsers.map((user) => {
-                    const userUsage = getUsageForUser(user.id)
-                    const isNearLimit = user.plan === 'free' && userUsage >= 4
-                    const s = PLAN_STYLES[user.plan] || PLAN_STYLES.free
-                    return (
-                      <tr key={user.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '11px 16px', color: isNearLimit ? '#fbbf24' : '#e8ecf5', fontWeight: isNearLimit ? 600 : 400 }}>
-                          {user.email}
-                          {isNearLimit && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#e8b85c' }}>⚡ near limit</span>}
-                          {successId === user.id && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#86efac' }}>✓ updated</span>}
-                        </td>
-                        <td style={{ padding: '11px 16px' }}>
-                          <span style={{ background: s.bg, color: s.text, border: `1px solid ${s.border}`, padding: '3px 10px', borderRadius: '12px', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
-                            {user.plan}
-                          </span>
-                        </td>
-                        <td style={{ padding: '11px 16px', color: isNearLimit ? '#e8b85c' : '#8b9bc4' }}>
-                          {user.plan === 'free' ? `${userUsage} / 5` : '∞'}
-                        </td>
-                        <td style={{ padding: '11px 16px', color: '#6b7aa3', whiteSpace: 'nowrap' }}>
-                          {new Date(user.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </td>
-                        <td style={{ padding: '11px 16px' }}>
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            {['free', 'pro', 'institution'].map((plan) => {
-                              const ps = PLAN_STYLES[plan]
-                              const isCurrent = user.plan === plan
-                              return (
-                                <button
-                                  key={plan}
-                                  onClick={() => upgradePlan(user.id, plan)}
-                                  disabled={isCurrent || updating === user.id}
-                                  style={{
-                                    padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                                    cursor: isCurrent || updating === user.id ? 'default' : 'pointer',
-                                    border: `1px solid ${isCurrent ? 'rgba(255,255,255,0.08)' : ps.border}`,
-                                    background: isCurrent ? 'rgba(255,255,255,0.03)' : ps.bg,
-                                    color: isCurrent ? '#4a5568' : ps.text,
-                                    opacity: updating === user.id ? 0.5 : 1,
-                                    textTransform: 'capitalize',
-                                    transition: 'opacity 0.15s',
-                                  }}
-                                >
-                                  {updating === user.id ? '…' : plan}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <p style={{ fontSize: '12px', color: '#4a5568', margin: 0 }}>
-                {filteredUsers.length} of {users.length} users shown
-              </p>
-            </div>
-          </div>
+        {/* User list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {filtered.map(user => {
+            const planCfg = getPlanConfig(user.plan)
+            return (
+              <div key={user.id} style={{ ...glass, padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
 
-          {/* Sidebar: Recent signups */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ ...glass, padding: '18px 20px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f1f4fc', margin: '0 0 14px' }}>Recent Signups</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {recentSignups.map((u) => {
-                  const s = PLAN_STYLES[u.plan] || PLAN_STYLES.free
-                  return (
-                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ fontSize: '13px', color: '#e8ecf5', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</p>
-                        <p style={{ fontSize: '11px', color: '#6b7aa3', margin: 0 }}>
-                          {new Date(u.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
-                        </p>
-                      </div>
-                      <span style={{ background: s.bg, color: s.text, border: `1px solid ${s.border}`, padding: '2px 8px', borderRadius: '10px', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', flexShrink: 0 }}>
-                        {u.plan}
+                  {/* User info */}
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#e8ecf5' }}>{user.email}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '8px', background: planCfg.bg, color: planCfg.color, border: `1px solid ${planCfg.border}` }}>
+                        {planCfg.label}
                       </span>
                     </div>
-                  )
-                })}
-              </div>
-            </div>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#6b7aa3' }}>
+                      Joined {new Date(user.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {user.current_month_count !== undefined && ` · ${user.current_month_count} analyses this month`}
+                      {user.plan === 'free' && ` · ${user.analyses_limit - (user.current_month_count || 0)} remaining`}
+                    </p>
+                  </div>
 
-            {/* Quick upgrade guide */}
-            <div style={{ ...glass, padding: '18px 20px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f1f4fc', margin: '0 0 10px' }}>Upgrade Workflow</h3>
-              <ol style={{ margin: 0, paddingLeft: '16px', color: '#8b9bc4', fontSize: '12px', lineHeight: 1.8 }}>
-                <li>User sends GCash/bank payment</li>
-                <li>Find their email in the table</li>
-                <li>Click <strong style={{ color: '#60a5fa' }}>pro</strong> or <strong style={{ color: '#c4b5fd' }}>institution</strong></li>
-                <li>Plan activates instantly ✓</li>
-              </ol>
-              <p style={{ fontSize: '11px', color: '#4a5568', margin: '10px 0 0' }}>
-                Contact: <a href="mailto:yolymarorfiano@yahoo.com" style={{ color: '#8fb4ff' }}>yolymarorfiano@yahoo.com</a>
-              </p>
+                  {/* Plan upgrade buttons */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#6b7aa3', marginRight: '4px' }}>Set plan:</span>
+                    {PLANS.map(p => (
+                      <button
+                        key={p.key}
+                        onClick={() => upgradePlan(user.id, p.key)}
+                        disabled={upgradingId === user.id || user.plan === p.key}
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '5px 10px',
+                          borderRadius: '7px',
+                          border: `1px solid ${p.border}`,
+                          background: user.plan === p.key ? p.bg : 'transparent',
+                          color: user.plan === p.key ? p.color : '#6b7aa3',
+                          cursor: user.plan === p.key || upgradingId === user.id ? 'not-allowed' : 'pointer',
+                          opacity: upgradingId === user.id ? 0.6 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {upgradingId === user.id ? '…' : user.plan === p.key ? `✓ ${p.label}` : p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Team plan note */}
+                {user.plan === 'team' && (
+                  <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(124,92,255,0.06)', border: '1px solid rgba(124,92,255,0.2)', borderRadius: '8px', fontSize: '12px', color: '#8b9bc4' }}>
+                    👥 Team plan — user can create a team workspace at <code style={{ color: '#c4b5fd' }}>/team</code> and add up to 4 members.
+                    {' '}<a href="/team" style={{ color: '#8fb4ff', textDecoration: 'none' }}>View team management →</a>
+                  </div>
+                )}
+                {user.plan === 'institution' && (
+                  <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(232,184,92,0.06)', border: '1px solid rgba(232,184,92,0.2)', borderRadius: '8px', fontSize: '12px', color: '#8b9bc4' }}>
+                    🏛️ Institution plan — up to 20 members. Team max_members updated automatically.
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#6b7aa3', fontSize: '14px' }}>
+              No users match your search.
             </div>
-          </div>
+          )}
         </div>
+
+        {/* Pricing reference card */}
+        <div style={{ ...glass, padding: '20px 24px', marginTop: '24px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f1f4fc', margin: '0 0 16px', fontFamily: 'var(--font-space-grotesk), system-ui' }}>
+            Plan Reference
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            {[
+              { plan: 'Free',        price: '₱0',         limit: '3 analyses/month',   members: '1 user',     color: '#6b7aa3' },
+              { plan: 'Researcher',  price: '₱1,499/mo',  limit: 'Unlimited analyses', members: '1 user',     color: '#60a5fa' },
+              { plan: 'Team',        price: '₱3,499/mo',  limit: 'Unlimited analyses', members: 'Up to 5',    color: '#c4b5fd' },
+              { plan: 'Institution', price: '₱8,999/mo',  limit: 'Unlimited analyses', members: 'Up to 20',   color: '#e8b85c' },
+            ].map(p => (
+              <div key={p.plan} style={{ padding: '12px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p style={{ fontWeight: 700, color: p.color, margin: '0 0 6px', fontSize: '13px' }}>{p.plan} — {p.price}</p>
+                <p style={{ fontSize: '12px', color: '#8b9bc4', margin: '0 0 2px' }}>✓ {p.limit}</p>
+                <p style={{ fontSize: '12px', color: '#8b9bc4', margin: 0 }}>✓ {p.members}</p>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: '12px', color: '#4a6080', margin: '16px 0 0', lineHeight: 1.6 }}>
+            Payment via GCash or bank transfer → upgrade user here → if upgrading to Team/Institution, user creates their team at <code style={{ color: '#c4b5fd' }}>/team</code>.
+          </p>
+        </div>
+
       </div>
     </main>
   )
