@@ -123,7 +123,7 @@ export default function CleanPage() {
     const keepColsArr = Array.from(keepCols)
     const columnProfiles = keepColsArr.map(col => {
       const vals = rows.map(r => String(r[col] ?? '')).filter(Boolean)
-      const uniqueVals = [...new Set(vals)].slice(0, 10)
+      const uniqueVals = Array.from(new Set(vals)).slice(0, 10)
       const missingCount = rows.filter(r => !r[col] && r[col] !== 0).length
       return {
         name: col,
