@@ -4,10 +4,22 @@ import { useState } from 'react'
 import type { AnalysisResult } from '@/app/types'
 import { downloadReportAsPdf } from '@/app/lib/pdfReport'
 
+export interface LiveCitation {
+  title: string
+  authors: string
+  year: number | null
+  url: string
+  source: string
+  relevance: string
+  type: 'journal' | 'guideline' | 'manual' | 'other'
+}
+
 interface Props {
   result: AnalysisResult
   datasetName?: string
   onReportDownload?: () => void
+  liveCitations?: LiveCitation[]
+  liveCitationsLoading?: boolean
 }
 
 const TEST_LABELS: Record<string, string> = {
@@ -76,7 +88,7 @@ function ProvenanceBadge({ source }: { source: 'r' | 'ai' }) {
   )
 }
 
-export default function AnalysisResults({ result, datasetName = 'Dataset', onReportDownload }: Props) {
+export default function AnalysisResults({ result, datasetName = 'Dataset', onReportDownload, liveCitations = [], liveCitationsLoading = false }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>(
     result.execution.success ? 'interpretation' : 'output'
   )
@@ -378,6 +390,60 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
         )}
         {activeTab === 'references' && (
           <div>
+            {/* Live citations from web search */}
+            {(liveCitationsLoading || liveCitations.length > 0) && (
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: '#4a6080', letterSpacing: '0.5px' }}>
+                    🔍 Supporting Literature (Live Search)
+                  </h3>
+                  {liveCitationsLoading && (
+                    <span className="text-xs" style={{ color: '#8b9bc4' }}>
+                      <svg className="inline animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Searching for relevant papers…
+                    </span>
+                  )}
+                </div>
+                {liveCitations.length > 0 && (
+                  <div className="space-y-3 mb-4">
+                    {liveCitations.map((cite, i) => (
+                      <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(232,184,92,0.06)', border: '1px solid rgba(232,184,92,0.2)' }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(232,184,92,0.15)', color: '#92400e', border: '1px solid rgba(232,184,92,0.3)' }}>
+                                {cite.type === 'journal' ? 'Journal Article' : cite.type === 'guideline' ? 'Guideline' : cite.type === 'manual' ? 'Manual' : 'Resource'}
+                              </span>
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(74,222,128,0.1)', color: '#166534', border: '1px solid rgba(74,222,128,0.2)' }}>
+                                Live result
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold mb-0.5" style={{ color: '#1a2a3a' }}>{cite.title}</p>
+                            <p className="text-xs mb-0.5" style={{ color: '#4a6080' }}>
+                              {cite.authors}{cite.year ? ` (${cite.year})` : ''}. {cite.source}.
+                            </p>
+                            <p className="text-xs italic" style={{ color: '#6b7aa3' }}>{cite.relevance}</p>
+                          </div>
+                          <a
+                            href={cite.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-semibold px-3 py-1.5 rounded whitespace-nowrap flex-shrink-0"
+                            style={{ background: 'rgba(232,184,92,0.1)', color: '#92400e', border: '1px solid rgba(232,184,92,0.3)', textDecoration: 'none' }}
+                          >
+                            Open →
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <hr style={{ borderColor: 'rgba(180,200,230,0.3)', marginBottom: '20px' }} />
+              </div>
+            )}
             {/* Source tag legend */}
             <div className="mb-4 p-3 rounded-lg" style={{ background: 'rgba(124,92,255,0.06)', border: '1px solid rgba(124,92,255,0.15)' }}>
               <p className="text-xs font-semibold mb-2" style={{ color: '#4a6080' }}>Source tag legend — inline badges in the AI Interpretation tab:</p>
