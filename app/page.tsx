@@ -64,6 +64,10 @@ function HomeContent() {
   const [templateSaved, setTemplateSaved] = useState(false)
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  // Research question suggestions
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
+  const [isSuggestingQuestions, setIsSuggestingQuestions] = useState(false)
+  const [suggestQuestionsError, setSuggestQuestionsError] = useState('')
 
   useEffect(() => {
     fetch('/api/usage').then(r => r.json()).then(data => { if (data.success) setUsage(data) }).catch(() => {})
@@ -107,6 +111,8 @@ function HomeContent() {
       if (!data.success) { setErrorMessage(data.error || 'Upload failed.'); setStep('error'); return }
       setDatasetSummary(data.summary)
       setStep('inspect')
+      setSuggestedQuestions([])
+      setSuggestQuestionsError('')
       // Onboarding: mark dataset uploaded
       saveOnboardingState({ uploadedDataset: true })
       setOnboarding(loadOnboardingState())
@@ -277,6 +283,27 @@ function HomeContent() {
     setResearchQuestion(template.research_question)
     setHypothesis(template.hypothesis || '')
     setShowTemplateDropdown(false)
+  }
+
+  async function suggestQuestions() {
+    if (!datasetSummary) return
+    setIsSuggestingQuestions(true)
+    setSuggestQuestionsError('')
+    setSuggestedQuestions([])
+    try {
+      const res = await fetch('/api/suggest-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ summary: datasetSummary }),
+      })
+      const data = await res.json()
+      if (data.success) setSuggestedQuestions(data.questions)
+      else setSuggestQuestionsError('Could not generate suggestions. Try again.')
+    } catch {
+      setSuggestQuestionsError('Network error. Try again.')
+    } finally {
+      setIsSuggestingQuestions(false)
+    }
   }
 
   async function handleSignOut() { await supabase.auth.signOut(); window.location.href = '/login' }
@@ -491,6 +518,45 @@ function HomeContent() {
                 <label className="block text-sm font-medium mb-1" style={{ color: '#cdd8ff' }}>What do you want to find out?</label>
                 <textarea value={researchQuestion} onChange={(e) => setResearchQuestion(e.target.value)} placeholder="e.g. What is the epidemic curve of COVID-19 cases by symptom onset date?" rows={3} className="w-full rounded px-3 py-2 text-sm resize-none focus:outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', color: '#e8ecf5' }} />
                 <p className="text-xs mt-1" style={{ color: '#6b7aa3' }}>Write it like you'd ask a biostatistician — plain language, no need to name a specific test.</p>
+
+                {/* Suggest questions button */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={suggestQuestions}
+                    disabled={isSuggestingQuestions}
+                    className="text-xs px-3 py-1.5 rounded font-medium disabled:opacity-50 flex items-center gap-1.5"
+                    style={{ color: '#e8b85c', background: 'rgba(232,184,92,0.1)', border: '1px solid rgba(232,184,92,0.3)' }}
+                  >
+                    {isSuggestingQuestions ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+                        Thinking…
+                      </>
+                    ) : '💡 Suggest questions for this dataset'}
+                  </button>
+                  {suggestQuestionsError && <span className="text-xs" style={{ color: '#fca5a5' }}>{suggestQuestionsError}</span>}
+                </div>
+
+                {/* Suggested question chips */}
+                {suggestedQuestions.length > 0 && (
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    {suggestedQuestions.map((q, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setResearchQuestion(q)}
+                        className="text-xs px-3 py-2 rounded text-left transition-all"
+                        style={{
+                          color: researchQuestion === q ? '#fff' : '#e8b85c',
+                          background: researchQuestion === q ? 'linear-gradient(135deg, #7c5cff, #2e75b6)' : 'rgba(232,184,92,0.06)',
+                          border: `1px solid ${researchQuestion === q ? 'transparent' : 'rgba(232,184,92,0.25)'}`,
+                        }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {isDemoDataset && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {SAMPLE_QUESTIONS.map((q) => (
