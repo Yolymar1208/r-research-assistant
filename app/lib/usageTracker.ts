@@ -1,27 +1,41 @@
 import { supabaseAdmin } from '@/app/lib/supabase-server'
 import type { AnalysisPlan } from '@/app/types'
 
-const FREE_LIMIT = 5
+const FREE_LIMIT = 3
 
 function getMonthYear(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-// Get user plan from users table
-async function getUserPlan(userId: string | null): Promise<{ plan: string; limit: number }> {
-  if (!userId) return { plan: 'free', limit: FREE_LIMIT }
+async function getUserPlan(userId: string | null): Promise<{ plan: string; limit: number; teamId: string | null }> {
+  if (!userId) return { plan: 'free', limit: FREE_LIMIT, teamId: null }
 
-  const { data } = await supabaseAdmin
+  // Check direct user plan first
+  const { data: user } = await supabaseAdmin
     .from('users')
     .select('plan, analyses_limit')
     .eq('id', userId)
     .single()
 
-  if (!data) return { plan: 'free', limit: FREE_LIMIT }
+  if (user && user.plan !== 'free') {
+    const limit = user.analyses_limit ?? 999999
+    return { plan: user.plan, limit, teamId: null }
+  }
 
-  const limit = data.plan === 'free' ? FREE_LIMIT : (data.analyses_limit ?? 999)
-  return { plan: data.plan, limit }
+  // Check if user is a member of a team (team members get unlimited access)
+  const { data: membership } = await supabaseAdmin
+    .from('team_members')
+    .select('team_id, teams(plan, max_members)')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single()
+
+  if (membership) {
+    return { plan: 'team', limit: 999999, teamId: membership.team_id }
+  }
+
+  return { plan: 'free', limit: FREE_LIMIT, teamId: null }
 }
 
 export async function checkUsageLimit(userId: string | null, ipAddress: string): Promise<{
@@ -34,12 +48,10 @@ export async function checkUsageLimit(userId: string | null, ipAddress: string):
   const monthYear = getMonthYear()
   const { plan, limit } = await getUserPlan(userId)
 
-  // Pro and Institution users have unlimited access
   if (plan !== 'free') {
     return { allowed: true, currentCount: 0, limit: 999, plan, remaining: 999 }
   }
 
-  // Free users — check monthly count
   let query = supabaseAdmin
     .from('usage_tracking')
     .select('analyses_count')
@@ -63,7 +75,6 @@ export async function incrementUsage(userId: string | null, ipAddress: string): 
   const monthYear = getMonthYear()
   const { plan } = await getUserPlan(userId)
 
-  // Don't track usage for paid plans
   if (plan !== 'free') return
 
   let query = supabaseAdmin
@@ -82,21 +93,12 @@ export async function incrementUsage(userId: string | null, ipAddress: string): 
   if (existing) {
     await supabaseAdmin
       .from('usage_tracking')
-      .update({
-        analyses_count: existing.analyses_count + 1,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ analyses_count: existing.analyses_count + 1, updated_at: new Date().toISOString() })
       .eq('id', existing.id)
   } else {
     await supabaseAdmin
       .from('usage_tracking')
-      .insert({
-        user_id: userId,
-        ip_address: ipAddress,
-        month_year: monthYear,
-        analyses_count: 1,
-        plan: 'free',
-      })
+      .insert({ user_id: userId, ip_address: ipAddress, month_year: monthYear, analyses_count: 1, plan: 'free' })
   }
 }
 
@@ -111,8 +113,6 @@ export async function saveAnalysisHistory(
     rScript: string
     rawOutput: string
     executionSuccess: boolean
-    // Full plan object — stored as JSONB for byte-perfect PDF regeneration from history.
-    // Added after ALTER TABLE analysis_history ADD COLUMN plan_json JSONB (2026-07-02).
     plan?: AnalysisPlan
   }
 ): Promise<void> {
@@ -126,7 +126,6 @@ export async function saveAnalysisHistory(
     r_script: data.rScript,
     raw_output: data.rawOutput,
     execution_success: data.executionSuccess,
-    // Store full plan as JSONB if available — enables byte-perfect PDF re-download from history
     plan_json: data.plan ? (data.plan as unknown as Record<string, unknown>) : null,
   })
 }
@@ -141,12 +140,10 @@ export async function getUsageStatus(userId: string | null, ipAddress: string): 
   const monthYear = getMonthYear()
   const { plan, limit } = await getUserPlan(userId)
 
-  // Paid users — unlimited
   if (plan !== 'free') {
     return { currentCount: 0, limit: 999, plan, remaining: 999, monthYear }
   }
 
-  // Free users — get count
   let query = supabaseAdmin
     .from('usage_tracking')
     .select('analyses_count')
@@ -161,11 +158,5 @@ export async function getUsageStatus(userId: string | null, ipAddress: string): 
   const { data } = await query.single()
   const currentCount = data?.analyses_count ?? 0
 
-  return {
-    currentCount,
-    limit: FREE_LIMIT,
-    plan: 'free',
-    remaining: Math.max(0, FREE_LIMIT - currentCount),
-    monthYear,
-  }
+  return { currentCount, limit: FREE_LIMIT, plan: 'free', remaining: Math.max(0, FREE_LIMIT - currentCount), monthYear }
 }
