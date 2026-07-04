@@ -32,7 +32,8 @@ function splitForCaching(fullPrompt: string, marker: string): Anthropic.MessageP
     { type: 'text', text: fullPrompt.slice(0, splitIdx).trimEnd(), cache_control: { type: 'ephemeral' } },
     { type: 'text', text: '\n\n' + fullPrompt.slice(splitIdx) },
   ]
-  return [{ role: 'user', content: content as unknown as Anthropic.ContentBlockParam[] }]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return [{ role: 'user', content: content as any }]
 }
 
 // ─── Step 1: Create Analysis Plan ─────────────────────────────────────────────
