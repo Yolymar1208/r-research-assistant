@@ -54,13 +54,19 @@ export function getChartCode(plan: AnalysisPlan): string {
   switch (plan.selectedTest) {
 
     case 'epidemic_curve': return chartCode(`
-  date_col <- names(df)[sapply(names(df), function(x) {
-    vals <- df[[x]][!is.na(df[[x]])]
-    length(vals) > 0 && (inherits(df[[x]], "Date") ||
-      (is.character(df[[x]]) && !all(is.na(suppressWarnings(as.Date(vals[1:min(5,length(vals))]))))))
-  })][1]
-  if (!is.null(date_col) && !is.na(date_col)) {
-    df$epi_date_col <- suppressWarnings(as.Date(df[[date_col]]))
+  # Try plan's dependentVariable first, then auto-detect
+  date_col <- ${dv}
+  if (is.null(date_col) || length(date_col) == 0 || !date_col %in% names(df)) {
+    date_col <- names(df)[sapply(names(df), function(x) {
+      vals <- as.character(df[[x]][!is.na(df[[x]])])
+      length(vals) >= 3 && (
+        inherits(df[[x]], "Date") || inherits(df[[x]], "POSIXct") ||
+        (is.character(df[[x]]) && sum(!is.na(suppressWarnings(as.Date(vals[1:min(10,length(vals))])))) >= 3)
+      )
+    })][1]
+  }
+  if (!is.null(date_col) && length(date_col) > 0 && !is.na(date_col) && date_col %in% names(df)) {
+    df$epi_date_col <- suppressWarnings(as.Date(as.character(df[[date_col]])))
     epi_data <- df %>% filter(!is.na(epi_date_col)) %>%
       count(epi_date_col) %>% rename(date = epi_date_col, cases = n)
     peak_row <- epi_data[which.max(epi_data$cases),]
@@ -69,11 +75,11 @@ export function getChartCode(plan: AnalysisPlan): string {
       geom_text(aes(label = cases), vjust = -0.4, size = 3.5, color = "#1a2a3a", fontface = "bold") +
       geom_vline(xintercept = as.numeric(peak_row$date), linetype = "dashed",
                  color = "#e8b85c", linewidth = 0.8, alpha = 0.8) +
-      annotate("text", x = peak_row$date, y = peak_row$cases * 0.6,
-               label = paste0("Peak\\n", peak_row$cases, " cases"),
+      annotate("text", x = peak_row$date, y = peak_row$cases * 0.55,
+               label = paste0("Peak: ", peak_row$cases, " cases"),
                size = 3.2, color = "#92400e", hjust = -0.1, fontface = "bold") +
       scale_x_date(date_labels = "%b %d", date_breaks = "1 day") +
-      scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+      scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
       labs(
         title = "Epidemic Curve by Date of Symptom Onset",
         subtitle = paste0("Total cases: ", sum(epi_data$cases),
@@ -84,7 +90,7 @@ export function getChartCode(plan: AnalysisPlan): string {
       ) + ${THEME_BASE} +
       theme(axis.text.x = element_text(angle = 45, hjust = 1),
             panel.grid.major.x = element_blank())
-  } else { stop("No date column found for epidemic curve chart") }`)
+  } else { stop(paste("No date column found. dv=", date_col, "cols:", paste(names(df)[1:5], collapse=","))) }`)
 
     case 'moving_average': return chartCode(`
   date_col <- names(df)[sapply(names(df), function(x) {
