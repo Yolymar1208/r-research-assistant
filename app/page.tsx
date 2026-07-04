@@ -354,6 +354,7 @@ function HomeContent() {
             )}
             {datasetSummary && <button onClick={reset} className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#aab4d4', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)' }}>Start Over</button>}
             <a href="/clean" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#86efac', border: '1px solid rgba(74,222,128,0.3)', background: 'rgba(74,222,128,0.06)' }}>🧹 Line List Builder</a>
+            <a href="/team" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#c4b5fd', border: '1px solid rgba(124,92,255,0.3)', background: 'rgba(124,92,255,0.06)' }}>👥 Team</a>
             <a href="/history" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#aab4d4', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)' }}>History</a>
             <a href="/landing" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#8fb4ff', border: '1px solid rgba(124,92,255,0.35)', background: 'rgba(124,92,255,0.08)' }}>Pricing</a>
             {userEmail && (
