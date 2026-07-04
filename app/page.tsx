@@ -77,6 +77,23 @@ function HomeContent() {
       .then(r => r.json())
       .then(d => { if (d.success) setTemplates(d.templates) })
       .catch(() => {})
+    // Pick up cleaned file from Line List Builder if redirected
+    const fromCleaner = new URLSearchParams(window.location.search).get('from_cleaner')
+    if (fromCleaner === '1') {
+      const blobUrl = sessionStorage.getItem('cleanedFileBlob')
+      const cleanedName = sessionStorage.getItem('cleanedFileName') || 'clean_linelist.xlsx'
+      sessionStorage.removeItem('cleanedFileBlob')
+      sessionStorage.removeItem('cleanedFileName')
+      if (blobUrl) {
+        fetch(blobUrl)
+          .then(r => r.blob())
+          .then(blob => {
+            const file = new File([blob], cleanedName, { type: blob.type })
+            handleFileUpload(file, false)
+          })
+          .catch(() => {})
+      }
+    }
   }, [])
 
   async function handleFileUpload(file: File, isDemo = false) {
@@ -309,6 +326,7 @@ function HomeContent() {
               </span>
             )}
             {datasetSummary && <button onClick={reset} className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#aab4d4', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)' }}>Start Over</button>}
+            <a href="/clean" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#86efac', border: '1px solid rgba(74,222,128,0.3)', background: 'rgba(74,222,128,0.06)' }}>🧹 Line List Builder</a>
             <a href="/history" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#aab4d4', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)' }}>History</a>
             <a href="/landing" className="text-xs px-2.5 py-1.5 rounded whitespace-nowrap transition-colors" style={{ color: '#8fb4ff', border: '1px solid rgba(124,92,255,0.35)', background: 'rgba(124,92,255,0.08)' }}>Pricing</a>
             {userEmail && (
