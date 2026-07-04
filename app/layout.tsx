@@ -9,26 +9,25 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: 'JOANResearchOS',
-  description: 'AI-assisted statistical analysis powered by R — built for nurses, physicians, and epidemiologists.',
-  // Prevents iOS Safari from auto-linking bare numbers (p-values, coefficients,
-  // row counts in R output/scripts) as tappable phone numbers.
-  other: {
-    'format-detection': 'telephone=no',
-  },
+  title: 'JOANResearchOS — Statistical Analysis for Epidemiologists',
+  description: 'AI-assisted statistical analysis powered by R. Epidemic curves, attack rate tables, survival analysis, and 16 more tests. DOH-ready PDF reports. Built for Philippine field epidemiology.',
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'JOANResearchOS',
+  },
+  icons: {
+    icon: '/icons/icon-512.svg',
+    apple: '/icons/icon-192.svg',
   },
 }
 
 export const viewport: Viewport = {
+  themeColor: '#7c5cff',
   width: 'device-width',
   initialScale: 1,
-  // maximumScale intentionally left unset — locking zoom breaks accessibility
-  // for users who need to pinch-zoom statistical tables on a small screen.
-  themeColor: '#1a3a5c',
+  maximumScale: 1,
 }
 
 export default function RootLayout({
