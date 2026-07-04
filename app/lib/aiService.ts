@@ -6,10 +6,10 @@ import {
   buildInterpretationPrompt,
 } from '@/app/lib/prompts'
 
-// ─── Model routing ─────────────────────────────────────────────────────────────
+// Model routing:
 // Haiku 4.5  ($1/$5 per MTok)  — test selection + R code generation
 // Sonnet 4.6 ($3/$15 per MTok) — interpretation only (what users/DOH read)
-// Savings vs all-Sonnet: ~60% per analysis with caching enabled.
+// Combined with prompt caching: ~60% cost reduction vs all-Sonnet no-cache.
 
 const MODEL_PLANNING = 'claude-haiku-4-5-20251001'
 const MODEL_INTERPRET = 'claude-sonnet-4-6'
@@ -18,6 +18,21 @@ function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set.')
   return new Anthropic({ apiKey })
+}
+
+// cache_control is supported by the Anthropic API but not typed in older
+// SDK versions. Cast to any[] to bypass the stale type check safely.
+type CacheableContent = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }
+
+function splitForCaching(fullPrompt: string, marker: string): Anthropic.MessageParam[] {
+  const splitIdx = fullPrompt.indexOf(marker)
+  if (splitIdx === -1) return [{ role: 'user', content: fullPrompt }]
+
+  const content: CacheableContent[] = [
+    { type: 'text', text: fullPrompt.slice(0, splitIdx).trimEnd(), cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: '\n\n' + fullPrompt.slice(splitIdx) },
+  ]
+  return [{ role: 'user', content: content as unknown as Anthropic.ContentBlockParam[] }]
 }
 
 // ─── Step 1: Create Analysis Plan ─────────────────────────────────────────────
@@ -29,23 +44,7 @@ export async function createAnalysisPlan(
 ): Promise<AnalysisPlan> {
   const client = getClient()
   const fullPrompt = buildAnalysisPlannerPrompt(summary, researchQuestion, hypothesis)
-
-  // Cache everything before the per-user dataset profile (static instruction block)
-  const splitMarker = 'DATASET PROFILE:'
-  const splitIdx = fullPrompt.indexOf(splitMarker)
-
-  let messages: Anthropic.MessageParam[]
-  if (splitIdx !== -1) {
-    messages = [{
-      role: 'user',
-      content: [
-        { type: 'text', text: fullPrompt.slice(0, splitIdx).trimEnd(), cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: '\n\n' + fullPrompt.slice(splitIdx) },
-      ],
-    }]
-  } else {
-    messages = [{ role: 'user', content: fullPrompt }]
-  }
+  const messages = splitForCaching(fullPrompt, 'DATASET PROFILE:')
 
   const response = await client.messages.create({
     model: MODEL_PLANNING,
@@ -81,23 +80,7 @@ export async function generateRScript(
 ): Promise<string> {
   const client = getClient()
   const fullPrompt = buildRCodeGeneratorPrompt(plan, summary, excelFilePath)
-
-  // Cache everything before the per-user file path + column list
-  const splitMarker = 'FILE PATH:'
-  const splitIdx = fullPrompt.indexOf(splitMarker)
-
-  let messages: Anthropic.MessageParam[]
-  if (splitIdx !== -1) {
-    messages = [{
-      role: 'user',
-      content: [
-        { type: 'text', text: fullPrompt.slice(0, splitIdx).trimEnd(), cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: '\n\n' + fullPrompt.slice(splitIdx) },
-      ],
-    }]
-  } else {
-    messages = [{ role: 'user', content: fullPrompt }]
-  }
+  const messages = splitForCaching(fullPrompt, 'FILE PATH:')
 
   const response = await client.messages.create({
     model: MODEL_PLANNING,
@@ -123,23 +106,7 @@ export async function interpretROutput(
 ): Promise<string> {
   const client = getClient()
   const fullPrompt = buildInterpretationPrompt(plan, rScript, rawOutput, language)
-
-  // Cache everything before the per-request plan + R output
-  const splitMarker = 'RESEARCH QUESTION:'
-  const splitIdx = fullPrompt.indexOf(splitMarker)
-
-  let messages: Anthropic.MessageParam[]
-  if (splitIdx !== -1) {
-    messages = [{
-      role: 'user',
-      content: [
-        { type: 'text', text: fullPrompt.slice(0, splitIdx).trimEnd(), cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: '\n\n' + fullPrompt.slice(splitIdx) },
-      ],
-    }]
-  } else {
-    messages = [{ role: 'user', content: fullPrompt }]
-  }
+  const messages = splitForCaching(fullPrompt, 'RESEARCH QUESTION:')
 
   const response = await client.messages.create({
     model: MODEL_INTERPRET,
