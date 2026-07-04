@@ -66,6 +66,7 @@ export interface RExecutionResult {
   errorMessage: string | null
   executionTimeMs: number
   rScript: string
+  chartBase64?: string  // ggplot2 chart PNG encoded as base64 data URI, generated post-analysis
 }
 
 export interface AnalysisResult {
