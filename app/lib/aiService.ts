@@ -102,11 +102,10 @@ export async function generateRScript(
 export async function interpretROutput(
   plan: AnalysisPlan,
   rScript: string,
-  rawOutput: string,
-  language: 'english' | 'filipino' = 'english'
+  rawOutput: string
 ): Promise<string> {
   const client = getClient()
-  const fullPrompt = buildInterpretationPrompt(plan, rScript, rawOutput, language)
+  const fullPrompt = buildInterpretationPrompt(plan, rScript, rawOutput)
   const messages = splitForCaching(fullPrompt, 'RESEARCH QUESTION:')
 
   const response = await client.messages.create({
