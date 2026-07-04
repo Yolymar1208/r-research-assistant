@@ -60,9 +60,9 @@ export function getChartCode(plan: AnalysisPlan): string {
       (is.character(df[[x]]) && !all(is.na(suppressWarnings(as.Date(vals[1:min(5,length(vals))]))))))
   })][1]
   if (!is.null(date_col) && !is.na(date_col)) {
-    df$__date__ <- suppressWarnings(as.Date(df[[date_col]]))
-    epi_data <- df %>% filter(!is.na(__date__)) %>%
-      count(__date__) %>% rename(date = __date__, cases = n)
+    df$epi_date_col <- suppressWarnings(as.Date(df[[date_col]]))
+    epi_data <- df %>% filter(!is.na(epi_date_col)) %>%
+      count(epi_date_col) %>% rename(date = epi_date_col, cases = n)
     peak_row <- epi_data[which.max(epi_data$cases),]
     p_chart <- ggplot(epi_data, aes(x = date, y = cases)) +
       geom_col(fill = "#7c5cff", color = "#5a3dcc", width = 0.7, alpha = 0.9) +
@@ -92,9 +92,9 @@ export function getChartCode(plan: AnalysisPlan): string {
     (is.character(df[[x]]) && !all(is.na(suppressWarnings(as.Date(df[[x]][!is.na(df[[x]])][1:min(5, sum(!is.na(df[[x]])))])))))
   })][1]
   if (!is.null(date_col) && !is.na(date_col)) {
-    df$__date__ <- suppressWarnings(as.Date(df[[date_col]]))
-    ma_data <- df %>% filter(!is.na(__date__)) %>%
-      count(__date__) %>% rename(date = __date__, cases = n) %>%
+    df$epi_date_col <- suppressWarnings(as.Date(df[[date_col]]))
+    ma_data <- df %>% filter(!is.na(epi_date_col)) %>%
+      count(epi_date_col) %>% rename(date = epi_date_col, cases = n) %>%
       arrange(date) %>%
       mutate(ma7 = zoo::rollmean(cases, k = 7, fill = NA, align = "right"))
     p_chart <- ggplot(ma_data, aes(x = date)) +
@@ -115,19 +115,19 @@ export function getChartCode(plan: AnalysisPlan): string {
   age_col <- ${dv}
   sex_col <- ${iv}
   if (!is.null(age_col) && !is.null(sex_col) && age_col %in% names(df) && sex_col %in% names(df)) {
-    df$__age__ <- suppressWarnings(as.numeric(df[[age_col]]))
-    df$__sex__ <- as.character(df[[sex_col]])
-    df$__sex__ <- ifelse(tolower(df$__sex__) %in% c("m","male","lalaki"), "Male",
-                  ifelse(tolower(df$__sex__) %in% c("f","female","babae"), "Female", df$__sex__))
-    df_clean <- df %>% filter(!is.na(__age__), !is.na(__sex__), __sex__ %in% c("Male","Female"))
-    df_clean$age_group <- cut(df_clean$__age__,
+    df$epi_age_col <- suppressWarnings(as.numeric(df[[age_col]]))
+    df$epi_sex_col <- as.character(df[[sex_col]])
+    df$epi_sex_col <- ifelse(tolower(df$epi_sex_col) %in% c("m","male","lalaki"), "Male",
+                  ifelse(tolower(df$epi_sex_col) %in% c("f","female","babae"), "Female", df$epi_sex_col))
+    df_clean <- df %>% filter(!is.na(epi_age_col), !is.na(epi_sex_col), epi_sex_col %in% c("Male","Female"))
+    df_clean$age_group <- cut(df_clean$epi_age_col,
       breaks = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,75,Inf),
       labels = c("0-4","5-9","10-14","15-19","20-24","25-29","30-34",
                  "35-39","40-44","45-49","50-54","55-59","60-64","65-74","75+"),
       right = FALSE, include.lowest = TRUE)
-    pyr <- df_clean %>% count(age_group, __sex__) %>%
-      mutate(n = ifelse(__sex__ == "Male", -n, n))
-    p_chart <- ggplot(pyr, aes(x = age_group, y = n, fill = __sex__)) +
+    pyr <- df_clean %>% count(age_group, epi_sex_col) %>%
+      mutate(n = ifelse(epi_sex_col == "Male", -n, n))
+    p_chart <- ggplot(pyr, aes(x = age_group, y = n, fill = epi_sex_col)) +
       geom_col(width = 0.85, alpha = 0.9) +
       coord_flip() +
       scale_y_continuous(labels = function(x) abs(x),
@@ -319,10 +319,10 @@ export function getChartCode(plan: AnalysisPlan): string {
   dv_col <- ${dv}
   iv_col <- ${iv}
   if (!is.null(iv_col) && iv_col %in% names(df)) {
-    df$__outcome__ <- suppressWarnings(as.numeric(as.factor(df[[dv_col]])) - 1)
-    df$__pred__    <- suppressWarnings(as.numeric(df[[iv_col]]))
-    df_p <- df %>% filter(!is.na(__outcome__), !is.na(__pred__))
-    model <- glm(__outcome__ ~ __pred__, data = df_p, family = binomial)
+    df$epi_outcome_col <- suppressWarnings(as.numeric(as.factor(df[[dv_col]])) - 1)
+    df$epi_pred_col    <- suppressWarnings(as.numeric(df[[iv_col]]))
+    df_p <- df %>% filter(!is.na(epi_outcome_col), !is.na(epi_pred_col))
+    model <- glm(epi_outcome_col ~ epi_pred_col, data = df_p, family = binomial)
     coef_df <- as.data.frame(cbind(OR = exp(coef(model)),
                                    exp(confint.default(model))))
     names(coef_df) <- c("OR","lower","upper")
