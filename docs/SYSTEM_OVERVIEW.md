@@ -3,129 +3,124 @@
 | Field | Value |
 |---|---|
 | Title | System Architecture Overview |
-| Version | 2.0 |
+| Version | 3.0 |
 | Status | Active |
 | Owner | Yolymar P. Orfiano, RN, MAN |
 | Created | 2026-06-30 |
-| Last Updated | 2026-07-02 |
-
-## Purpose
-Describes the complete system architecture of JOANResearchOS.
+| Last Updated | 2026-07-05 |
 
 ## Live URLs
 | Service | URL |
 |---|---|
-| Frontend (production) | https://r-research-assistant-vx33.vercel.app |
+| App | https://r-research-assistant-vx33.vercel.app |
 | Landing page | https://r-research-assistant-vx33.vercel.app/landing |
-| Admin dashboard | https://r-research-assistant-vx33.vercel.app/admin |
-| R Plumber API | https://r-plumber-api-rc95.onrender.com |
-| Supabase project | https://mwfsfdloprvawgzljolh.supabase.co |
+| Line List Builder | https://r-research-assistant-vx33.vercel.app/clean |
+| Team management | https://r-research-assistant-vx33.vercel.app/team |
+| Admin | https://r-research-assistant-vx33.vercel.app/admin |
+| R API | https://r-plumber-api-rc95.onrender.com |
 
 ## GitHub Repositories
-| Repo | URL | Purpose |
-|---|---|---|
-| Frontend | https://github.com/Yolymar1208/r-research-assistant | Next.js 14 app |
-| R API | https://github.com/Yolymar1208/r-plumber-api | R Plumber Docker API |
+| Repo | URL |
+|---|---|
+| Frontend | https://github.com/Yolymar1208/r-research-assistant |
+| R API | https://github.com/Yolymar1208/r-plumber-api |
 
-## Architecture Diagram
+## Complete API Route Map
 ```
-Browser (User)
-    │
-    ▼
-Vercel (Next.js 14)
-    │
-    ├─── /api/upload              ← Receives Excel, stores to Supabase Storage, warm-up R API
-    ├─── /api/analyze             ← AI plans test + generates R code
-    ├─── /api/execute-r           ← Injects signed URL, sends to Render, saves history
-    ├─── /api/reinterpret         ← Re-calls Claude in Filipino or English (no R re-run)
-    ├─── /api/generate-report     ← Generates HTML report (server-side, used by pdfReport.tsx)
-    ├─── /api/generate-qgis       ← Generates QGIS-ready CSV export (all 19 tests)
-    ├─── /api/history             ← Returns past analyses from Supabase (includes plan_json)
-    ├─── /api/usage               ← Returns usage count for current user
-    ├─── /api/share               ← Creates shareable analysis token + snapshot
-    ├─── /api/templates           ← GET/POST/DELETE analysis templates
-    ├─── /api/notify-analysis     ← Sends analysis-complete email via Yahoo SMTP
-    └─── /api/admin/*             ← Admin-only endpoints (users, usage, upgrade)
-         │
-         ├──────────────────────────────────────┐
-         ▼                                      ▼
-Anthropic API (Claude)              Render.com (R Plumber API)
-- Test selection                    - Executes R scripts
-- R code generation                 - Returns raw R output
-- Output interpretation             - Docker container
-- Language: english | filipino
-         │                                      │
-         └──────────────────────────────────────┘
-                          │
-                          ▼
-               Supabase (PostgreSQL + Storage)
-               - auth.users
-               - public.users
-               - public.usage_tracking
-               - public.analysis_history (+ plan_json JSONB)
-               - public.rate_limits
-               - public.shared_analyses (token-gated snapshots)
-               - public.analysis_templates (per-user reusable questions)
-               - storage: datasets bucket
+/api/upload                ← File upload + warm-up R API ping
+/api/analyze               ← AI planning + R code generation (Haiku)
+/api/execute-r             ← R execution + interpretation + saves plan_json
+/api/reinterpret           ← REMOVED (Filipino translation removed for cost)
+/api/generate-report       ← HTML report (all 19 test labels)
+/api/generate-qgis         ← QGIS CSV for all 19 tests
+/api/history               ← Analysis history (includes plan_json)
+/api/usage                 ← Usage status
+/api/share                 ← Creates shareable analysis token (ADR-0003)
+/api/templates             ← GET/POST/DELETE analysis templates
+/api/notify-analysis       ← Analysis-complete email via Yahoo SMTP
+/api/suggest-questions     ← AI research question suggestions (Haiku, ~$0.002)
+/api/suggest-cleaning      ← AI cleaning suggestions for Line List Builder
+/api/find-citations        ← Live web search for supporting literature (Haiku + web_search)
+/api/team                  ← GET/POST/DELETE team management
+/api/admin/users           ← Admin: list users
+/api/admin/usage           ← Admin: usage stats
+/api/admin/upgrade         ← Admin: upgrade user plan
 ```
+
+## Cost Per Analysis (current, post-optimization)
+| Call | Model | Cost |
+|---|---|---|
+| Call 1: Analysis planning | Haiku 4.5 | ~$0.003 |
+| Call 2: R code generation | Haiku 4.5 | ~$0.005 |
+| Call 3: Interpretation | Sonnet 4.6 | ~$0.010 |
+| **Total per analysis** | | **~$0.018** |
+| Suggest questions (on-demand) | Haiku 4.5 | ~$0.002 |
+| Find citations (post-analysis) | Haiku 4.5 + web search | ~$0.003–0.005 |
+| Suggest cleaning (Line List Builder) | Haiku 4.5 | ~$0.001 |
+
+Prompt caching applied on all three analysis calls (~30–40% additional savings).
+Filipino translation removed (was ~$0.002–0.004 per toggle).
+
+## Data Flow: Analysis
+```
+Upload Excel → Supabase Storage → warm-up Render
+→ User enters question → /api/analyze (Haiku: plan + R code)
+→ Assumption check panel shown
+→ User approves → /api/execute-r
+  → Fresh signed URL injected into R script
+  → R script sent to Render → executed
+  → Sonnet interprets output (with [R][WHO][CDC][EpiR][DOH][stat] tags)
+  → Saved to analysis_history with plan_json
+→ Client fires /api/find-citations (Haiku + web search, async)
+→ Citations appear in References tab 3–8 seconds later
+```
+
+## Data Flow: Line List Builder (/clean)
+```
+Upload raw file (KoboToolbox/PIDSR/Google Forms/REDCap/Hospital EMR)
+→ CLIENT-SIDE: source detection (column pattern matching)
+→ CLIENT-SIDE: PHI detection and column classification
+→ User reviews REMOVE/KEEP buckets + ticks confirmation checkbox
+→ /api/suggest-cleaning called (column metadata only — no row data)
+→ AI cleaning suggestions returned
+→ CLIENT-SIDE: approved steps executed in browser
+→ Cleaned, de-identified file produced
+→ Download as .xlsx OR pass directly to analysis pipeline
+```
+
+## Pricing (current)
+| Plan | Price | Members | analyses_limit |
+|---|---|---|---|
+| Free | ₱0 | 1 | 3/month |
+| Researcher | ₱1,499/mo | 1 | Unlimited |
+| Team | ₱3,499/mo | up to 5 | Unlimited |
+| Institution | ₱8,999/mo | up to 20 | Unlimited |
 
 ## Technology Stack
-| Layer | Technology | Version | Host |
-|---|---|---|---|
-| Frontend framework | Next.js | 14.2.5 | Vercel |
-| Language | TypeScript | — | — |
-| Styling | Tailwind CSS + inline styles | — | — |
-| Auth | Supabase Auth (@supabase/ssr) | — | Supabase |
-| Database | PostgreSQL | — | Supabase |
-| File storage | Supabase Storage | — | Supabase |
-| AI model | Claude (Anthropic API) | claude-sonnet-4-6 | Anthropic |
-| Statistical engine | R | 4.4.1 | Render.com |
-| R API framework | Plumber | — | Render.com |
-| R containerization | Docker | rocker/r-ver:4.4.1 | Render.com |
-| PDF generation | @react-pdf/renderer | ^3.4.4 | Client-side |
-| Email SMTP | nodemailer + Yahoo Mail | smtp.mail.yahoo.com:465 | Yahoo |
-| Keep-alive | UptimeRobot | — | Cloud |
-
-## Data Flow: File Upload → R Execution
-1. User uploads Excel → `/api/upload`
-2. File saved to Supabase Storage → background warm-up ping to Render
-3. User submits research question → `/api/analyze`
-4. AI selects test + generates R script
-5. **NEW:** Assumption check panel shown — user reviews and approves
-6. User clicks Proceed → `/api/execute-r`
-7. Fresh signed URL injected into R script via `download.file()`
-8. R script sent to Render → R executes → raw output returned
-9. AI interprets output → saved to `analysis_history` with `plan_json`
-10. Optional: email notification sent via `/api/notify-analysis`
-
-## Language Toggle Flow (new)
-1. User clicks 🇵🇭 Filipino on Interpretation tab
-2. Frontend calls `/api/reinterpret` with `language: 'filipino'`
-3. Claude re-interprets same R output in Filipino
-4. Result shown in place — R is never re-run
-
-## Share Link Flow (new, ADR-0003)
-1. User clicks 🔗 Share on completed analysis
-2. `/api/share` generates 32-char token, stores snapshot in `shared_analyses`
-3. Link copied to clipboard: `/share/[token]`
-4. Recipient opens link → if not logged in, sees login gate with "Create free account" CTA
-5. Once logged in, sees full read-only analysis (all tabs, all downloads except share)
+| Layer | Technology | Host |
+|---|---|---|
+| Frontend | Next.js 14.2.5 | Vercel Hobby |
+| Language | TypeScript | — |
+| Auth | Supabase Auth | Supabase Pro |
+| Database | PostgreSQL | Supabase Pro |
+| File storage | Supabase Storage | Supabase Pro |
+| AI model (planning/code) | claude-haiku-4-5-20251001 | Anthropic |
+| AI model (interpretation) | claude-sonnet-4-6 | Anthropic |
+| Statistical engine | R 4.4.1 via Plumber | Render.com |
+| PDF generation | @react-pdf/renderer | Client-side only |
+| Email SMTP | nodemailer + Yahoo | smtp.mail.yahoo.com:465 |
+| Keep-alive | UptimeRobot | Cloud |
 
 ## Critical Constraints
-- Vercel serverless functions do NOT share `/tmp` between invocations
-- Render.com free tier sleeps — UptimeRobot pings every 5 minutes + warm-up on upload
-- Supabase Pro tier (upgraded from free)
-- Vercel Hobby tier — max function size 50MB (rules out Puppeteer; use @react-pdf/renderer)
-- PDF generation is client-side only (no server-side PDF route needed)
-
-## Dependencies
-- `03_Database/SCHEMA.md`
-- `04_API/API_ROUTES.md`
-- `06_R_Engine/R_PACKAGES.md`
-- `09_DevOps/DEPLOYMENT.md`
+- Vercel serverless functions do NOT share /tmp
+- Render.com free tier sleeps — warm-up on upload + UptimeRobot
+- All Line List Builder cleaning is browser-only — PHI never reaches server
+- PDF generation is client-side only — never import pdfReport.tsx on server
+- Analysis is two-phase: planAnalysis() → assumption check → executeAnalysis()
 
 ## Revision History
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-06-30 | Initial creation |
-| 2.0 | 2026-07-02 | Added reinterpret, share, templates, notify-analysis routes; PDF is client-side; assumption check step; Supabase Pro |
+| 2.0 | 2026-07-02 | Added reinterpret, share, templates, notify-analysis routes |
+| 3.0 | 2026-07-05 | Added Line List Builder, find-citations, suggest-questions, team routes; removed reinterpret; updated pricing and cost model |
