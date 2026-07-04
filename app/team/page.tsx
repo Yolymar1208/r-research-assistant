@@ -56,28 +56,44 @@ export default function TeamPage() {
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email || '')
-    })
-    loadTeam()
-    // Get user plan
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (data.user) {
-        const { data: u } = await supabase.from('users').select('plan').eq('id', data.user.id).single()
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUserEmail(user?.email || '')
+
+      // Get user plan from public.users
+      if (user) {
+        const { data: u } = await supabase
+          .from('users')
+          .select('plan')
+          .eq('id', user.id)
+          .single()
         setUserPlan(u?.plan || 'free')
       }
-    })
+
+      await loadTeam()
+    }
+    init()
   }, [])
 
   async function loadTeam() {
     setLoading(true)
-    const res = await fetch('/api/team')
-    const data = await res.json()
-    if (data.success) {
-      setTeam(data.team)
-      setRole(data.role || null)
+    try {
+      const res = await fetch('/api/team')
+      if (!res.ok) {
+        console.error('[team page] API error:', res.status)
+        setLoading(false)
+        return
+      }
+      const data = await res.json()
+      if (data.success) {
+        setTeam(data.team)
+        setRole(data.role || null)
+      }
+    } catch (err) {
+      console.error('[team page] loadTeam error:', err)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function createTeam() {
