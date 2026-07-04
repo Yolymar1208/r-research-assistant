@@ -1,0 +1,63 @@
+{
+  "name": "JOANResearchOS",
+  "short_name": "JOANResearch",
+  "description": "Statistical analysis platform for Philippine epidemiologists and researchers. AI selects the test. R computes every value.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05070f",
+  "theme_color": "#7c5cff",
+  "orientation": "portrait-primary",
+  "categories": ["medical", "education", "productivity"],
+  "lang": "en-PH",
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Analysis",
+      "short_name": "Analyze",
+      "description": "Upload a dataset and run a new analysis",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Line List Builder",
+      "short_name": "Clean Data",
+      "description": "Clean and de-identify KoboToolbox or PIDSR exports",
+      "url": "/clean",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Analysis History",
+      "short_name": "History",
+      "description": "View and download past analyses",
+      "url": "/history",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
