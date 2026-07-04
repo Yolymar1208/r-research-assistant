@@ -41,7 +41,10 @@ const TAB_SOURCE: Record<TabKey, 'r' | 'ai'> = {
   interpretation: 'ai',
 }
 
-type TabKey = 'plan' | 'rscript' | 'output' | 'interpretation'
+import { getReferencesForTest, SOURCE_TAG_CONFIG, REFERENCE_TYPE_LABELS } from '@/app/lib/references'
+import type { Reference } from '@/app/lib/references'
+
+type TabKey = 'plan' | 'rscript' | 'output' | 'interpretation' | 'references'
 
 const SOURCE_STYLES = {
   r: {
@@ -89,6 +92,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
     { key: 'rscript', label: 'R Script' },
     { key: 'output', label: 'Raw R Output' },
     { key: 'interpretation', label: 'AI Interpretation' },
+    { key: 'references', label: '📚 References' },
   ]
 
   function downloadRScript() {
@@ -177,6 +181,25 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
       document.body.removeChild(ta)
     }
   }
+
+  // Render interpretation text with inline source tag badges
+  function renderTaggedText(text: string): React.ReactNode {
+    const tagPattern = /\[(R|WHO|CDC|EpiR|DOH|stat)\]/g
+    const parts = text.split(tagPattern)
+    return parts.map((part, i) => {
+      const config = SOURCE_TAG_CONFIG[part]
+      if (config) {
+        return (
+          <span key={i} title={config.label} style={{ display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '6px', background: config.bg, color: config.color, border: `1px solid ${config.border}`, margin: '0 2px', verticalAlign: 'middle', lineHeight: 1.4 }}>
+            {part}
+          </span>
+        )
+      }
+      return <span key={i}>{part}</span>
+    })
+  }
+
+  const references = getReferencesForTest(result.plan.selectedTest)
 
   const EPI_TESTS = ['epidemic_curve', 'attack_rate_table', 'age_sex_pyramid', 'survival_analysis', 'moving_average']
   const isEpiTest = EPI_TESTS.includes(result.plan.selectedTest)
@@ -344,12 +367,81 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
                     return <h3 key={i} className="font-semibold mt-4 mb-1 first:mt-0" style={{ color: '#1a2a3a' }}>{line.replace(/\*\*/g, '')}</h3>
                   }
                   if (line.trim() === '') return <br key={i} />
-                  return <p key={i} className="text-sm mb-1" style={{ color: '#2a3a4a' }}>{line.replace(/\*\*([^*]+)\*\*/g, '$1')}</p>
+                  return <p key={i} className="text-sm mb-1" style={{ color: '#2a3a4a' }}>{renderTaggedText(line.replace(/\*\*([^*]+)\*\*/g, '$1'))}</p>
                 })}
               </div>
             ) : (
               <p className="text-sm italic" style={{ color: '#8098b8' }}>No interpretation available.</p>
             )}
+          </div>
+        )}
+        {activeTab === 'references' && (
+          <div>
+            {/* Source tag legend */}
+            <div className="mb-4 p-3 rounded-lg" style={{ background: 'rgba(124,92,255,0.06)', border: '1px solid rgba(124,92,255,0.15)' }}>
+              <p className="text-xs font-semibold mb-2" style={{ color: '#4a6080' }}>Source tag legend — inline badges in the AI Interpretation tab:</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(SOURCE_TAG_CONFIG).map(([tag, cfg]) => (
+                  <div key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 8px', borderRadius: '8px', background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: cfg.color }}>[{tag}]</span>
+                    <span style={{ fontSize: '11px', color: '#4a6080' }}>{cfg.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Reference list */}
+            <div className="space-y-3">
+              {references.map((ref: Reference) => (
+                <div key={ref.id} className="p-3 rounded-lg" style={{ background: 'rgba(240,244,250,0.8)', border: '1px solid rgba(180,200,230,0.4)' }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(46,117,182,0.12)', color: '#1d4ed8', border: '1px solid rgba(46,117,182,0.2)' }}>
+                          {REFERENCE_TYPE_LABELS[ref.type]}
+                        </span>
+                        {ref.downloadable && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(74,222,128,0.1)', color: '#166534', border: '1px solid rgba(74,222,128,0.2)' }}>
+                            Free access
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold mb-0.5" style={{ color: '#1a2a3a' }}>{ref.title}</p>
+                      <p className="text-xs mb-0.5" style={{ color: '#4a6080' }}>{ref.authors} ({ref.year}). {ref.source}.</p>
+                      {ref.notes && <p className="text-xs italic" style={{ color: '#6b7aa3' }}>{ref.notes}</p>}
+                    </div>
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      <a
+                        href={ref.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold px-3 py-1.5 rounded whitespace-nowrap text-center"
+                        style={{ background: 'rgba(46,117,182,0.1)', color: '#2e75b6', border: '1px solid rgba(46,117,182,0.3)', textDecoration: 'none' }}
+                      >
+                        Open →
+                      </a>
+                      {ref.downloadable && (
+                        <a
+                          href={ref.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-semibold px-3 py-1.5 rounded whitespace-nowrap text-center"
+                          style={{ background: 'rgba(74,222,128,0.1)', color: '#166534', border: '1px solid rgba(74,222,128,0.2)', textDecoration: 'none' }}
+                        >
+                          ↓ Download
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs mt-4" style={{ color: '#8098b8', lineHeight: 1.6 }}>
+              These references underpin the statistical methods and interpretive thresholds used in this analysis.
+              All free-access documents can be downloaded directly. For paywalled textbooks, check your institutional library or DOI link.
+              Source tags [R] [WHO] [CDC] [EpiR] [DOH] [stat] in the AI Interpretation tab identify which reference supports each specific claim.
+            </p>
           </div>
         )}
       </div>
