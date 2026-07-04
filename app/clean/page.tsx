@@ -104,13 +104,13 @@ export default function CleanPage() {
   // ─── Step 2 column drag ────────────────────────────────────────────────────────
 
   function moveToKeep(colName: string) {
-    setRemoveCols(prev => { const s = new Set(prev); s.delete(colName); return s })
-    setKeepCols(prev => new Set([...prev, colName]))
+    setRemoveCols(prev => { const s = new Set(Array.from(prev)); s.delete(colName); return s })
+    setKeepCols(prev => new Set([...Array.from(prev), colName]))
   }
 
   function moveToRemove(colName: string) {
-    setKeepCols(prev => { const s = new Set(prev); s.delete(colName); return s })
-    setRemoveCols(prev => new Set([...prev, colName]))
+    setKeepCols(prev => { const s = new Set(Array.from(prev)); s.delete(colName); return s })
+    setRemoveCols(prev => new Set([...Array.from(prev), colName]))
   }
 
   async function proceedToCleaning() {
@@ -120,7 +120,7 @@ export default function CleanPage() {
 
     // Build column profiles — column names + value distributions ONLY
     // Row-level data is never sent to the API
-    const keepColsArr = [...keepCols]
+    const keepColsArr = Array.from(keepCols)
     const columnProfiles = keepColsArr.map(col => {
       const vals = rows.map(r => String(r[col] ?? '')).filter(Boolean)
       const uniqueVals = [...new Set(vals)].slice(0, 10)
@@ -155,8 +155,8 @@ export default function CleanPage() {
 
     const steps = generateCleaningSteps(
       rows,
-      [...keepCols],
-      [...removeCols],
+      Array.from(keepCols),
+      Array.from(removeCols),
       birthdayColumn,
       selectedSource,
       aiSuggestions
@@ -348,7 +348,7 @@ export default function CleanPage() {
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#6b7aa3' }}>PHI and system metadata</p>
                 </div>
                 <div style={{ padding: '12px', maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {[...removeCols].map(col => {
+                  {Array.from(removeCols).map(col => {
                     const cls = columnClassifications.find(c => c.name === col)
                     return (
                       <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '6px', gap: '8px' }}>
@@ -375,7 +375,7 @@ export default function CleanPage() {
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#6b7aa3' }}>Analysis data — no PHI</p>
                 </div>
                 <div style={{ padding: '12px', maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {[...keepCols].map(col => (
+                  {Array.from(keepCols).map(col => (
                     <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '6px', gap: '8px' }}>
                       <p style={{ margin: 0, fontSize: '12px', color: '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col}</p>
                       <button onClick={() => moveToRemove(col)} style={{ fontSize: '10px', color: '#fca5a5', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '4px', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}>← Remove</button>
