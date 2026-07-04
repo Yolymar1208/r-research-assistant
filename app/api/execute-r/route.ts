@@ -55,7 +55,7 @@ interface ExecuteResponse {
 }
 
 function looksLikeColdStartFailure(execution: RExecutionResult): boolean {
-  const msg = (execution.errorMessage || '').toLowerCase()
+  const msg = String(execution.errorMessage || '').toLowerCase()
   const emptyOutput = !execution.rawOutput || execution.rawOutput.trim().length === 0
   const networkish = ['timeout', 'econnrefused', 'fetch failed', 'socket hang up', 'network', '502', '503', '504'].some(s => msg.includes(s))
   return networkish || (emptyOutput && !execution.success)
