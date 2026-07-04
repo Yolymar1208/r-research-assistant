@@ -39,6 +39,7 @@ const TAB_SOURCE: Record<TabKey, 'r' | 'ai'> = {
   rscript: 'r',
   output: 'r',
   interpretation: 'ai',
+  references: 'ai',
 }
 
 import { getReferencesForTest, SOURCE_TAG_CONFIG, REFERENCE_TYPE_LABELS } from '@/app/lib/references'
