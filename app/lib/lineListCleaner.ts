@@ -188,7 +188,7 @@ export function generateCleaningSteps(
   // Step 4: Auto-detect sex column and propose standardization if not already suggested
   const sexCol = keepColumns.find(c => /\b(sex|gender)\b/i.test(c))
   if (sexCol && !aiSuggestions.find(s => s.column === sexCol)) {
-    const uniqueVals = [...new Set(rows.map(r => String(r[sexCol] ?? '')).filter(Boolean))]
+    const uniqueVals = Array.from(new Set(rows.map(r => String(r[sexCol] ?? '')).filter(Boolean)))
     const nonStandard = uniqueVals.filter(v => v !== 'Male' && v !== 'Female' && v !== 'Unknown')
     if (nonStandard.length > 0) {
       steps.push({
