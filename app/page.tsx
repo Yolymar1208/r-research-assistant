@@ -19,6 +19,7 @@ import { checkAssumptions } from '@/app/lib/assumptionChecker'
 import type { AssumptionResult } from '@/app/lib/assumptionChecker'
 import OnboardingChecklist, { loadOnboardingState, saveOnboardingState, markEpiTestRun } from '@/app/components/OnboardingChecklist'
 import type { OnboardingState } from '@/app/components/OnboardingChecklist'
+import type { LiveCitation } from '@/app/components/AnalysisResults'
 
 const supabase = createClient()
 
@@ -49,6 +50,9 @@ function HomeContent() {
   const [assumptionResult, setAssumptionResult] = useState<AssumptionResult | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Live citations from web search (Option 3)
+  const [liveCitations, setLiveCitations] = useState<LiveCitation[]>([])
+  const [liveCitationsLoading, setLiveCitationsLoading] = useState(false)
 
   // Onboarding checklist state — loaded from localStorage on mount
   const [onboarding, setOnboarding] = useState<OnboardingState>({
@@ -230,6 +234,25 @@ function HomeContent() {
           }),
         }).catch(() => {}) // never surface email errors to the user
       }
+      // Fire live citation search (Option 3) — fire-and-forget, never blocks result
+      if (execution.success) {
+        setLiveCitations([])
+        setLiveCitationsLoading(true)
+        const keyFindings = interpretation.split('\n').filter(Boolean).slice(0, 3).join(' ')
+        fetch('/api/find-citations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan,
+            keyFindings: keyFindings || plan.researchQuestion,
+            rawOutputSnippet: execution.rawOutput.slice(0, 500),
+          }),
+        })
+          .then(r => r.json())
+          .then(d => { if (d.success) setLiveCitations(d.citations || []) })
+          .catch(() => {})
+          .finally(() => setLiveCitationsLoading(false))
+      }
       fetch('/api/usage').then(r => r.json()).then(d => { if (d.success) setUsage(d) }).catch(() => {})
     } catch (err) {
       setErrorMessage('Network error: ' + String(err))
@@ -312,6 +335,7 @@ function HomeContent() {
     setStep('upload'); setDatasetSummary(null); setResearchQuestion(''); setHypothesis('')
     setAnalysisResult(null); setErrorMessage(null); setIsDemoDataset(false)
     setPendingPlan(null); setAssumptionResult(null); setIsExecuting(false)
+    setLiveCitations([]); setLiveCitationsLoading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -681,6 +705,8 @@ function HomeContent() {
                     saveOnboardingState({ downloadedReport: true })
                     setOnboarding(loadOnboardingState())
                   }}
+                  liveCitations={liveCitations}
+                  liveCitationsLoading={liveCitationsLoading}
                 />
               </div>
             </div>
