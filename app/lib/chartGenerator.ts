@@ -54,15 +54,17 @@ export function getChartCode(plan: AnalysisPlan): string {
   switch (plan.selectedTest) {
 
     case 'epidemic_curve': return chartCode(`
-  # Try plan's dependentVariable first, then auto-detect
+  # Try plan dv, then common date column names, then auto-detect
   date_col <- ${dv}
-  if (is.null(date_col) || length(date_col) == 0 || !date_col %in% names(df)) {
+  if (is.null(date_col) || length(date_col) == 0 || !(date_col %in% names(df))) {
+    common_names <- c("date_onset","onset_date","date_of_onset","symptom_onset",
+                      "date_report","date_consult","date_admit","period","date")
+    date_col <- common_names[common_names %in% names(df)][1]
+  }
+  if (is.null(date_col) || length(date_col) == 0 || is.na(date_col) || !(date_col %in% names(df))) {
     date_col <- names(df)[sapply(names(df), function(x) {
       vals <- as.character(df[[x]][!is.na(df[[x]])])
-      length(vals) >= 3 && (
-        inherits(df[[x]], "Date") || inherits(df[[x]], "POSIXct") ||
-        (is.character(df[[x]]) && sum(!is.na(suppressWarnings(as.Date(vals[1:min(10,length(vals))])))) >= 3)
-      )
+      length(vals) >= 3 && sum(!is.na(suppressWarnings(as.Date(vals[1:min(10,length(vals))])))) >= 3
     })][1]
   }
   if (!is.null(date_col) && length(date_col) > 0 && !is.na(date_col) && date_col %in% names(df)) {
