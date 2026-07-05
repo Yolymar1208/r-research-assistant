@@ -378,8 +378,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Write to buffer
     const buffer = await pres.write({ outputType: 'nodebuffer' }) as Buffer
+    const uint8 = new Uint8Array(buffer)
 
-    return new NextResponse(buffer, {
+    return new NextResponse(uint8, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
