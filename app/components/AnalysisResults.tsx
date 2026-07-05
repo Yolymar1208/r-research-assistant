@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { AnalysisResult } from '@/app/types'
 import { downloadReportAsPdf } from '@/app/lib/pdfReport'
 
@@ -220,6 +220,25 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
 
   const references = getReferencesForTest(result.plan.selectedTest)
 
+  // Convert base64 data URI to blob URL for Safari/iOS compatibility
+  const [chartBlobUrl, setChartBlobUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const b64 = (result.execution as any)?.chartBase64
+    if (!b64) { setChartBlobUrl(null); return }
+    try {
+      const base64Data = b64.replace(/^data:image\/png;base64,/, '')
+      const binary = atob(base64Data)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      const blob = new Blob([bytes], { type: 'image/png' })
+      const url = URL.createObjectURL(blob)
+      setChartBlobUrl(url)
+      return () => URL.revokeObjectURL(url)
+    } catch {
+      setChartBlobUrl(b64) // fallback to data URI
+    }
+  }, [(result.execution as any)?.chartBase64])
+
   const EPI_TESTS = ['epidemic_curve', 'attack_rate_table', 'age_sex_pyramid', 'survival_analysis', 'moving_average']
   const isEpiTest = EPI_TESTS.includes(result.plan.selectedTest)
 
@@ -346,7 +365,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
                     </p>
                   </div>
                   <a
-                    href={(result.execution as any).chartBase64}
+                    href={chartBlobUrl || (result.execution as any).chartBase64}
                     download={`${result.plan.selectedTest}_chart.png`}
                     className="text-xs font-semibold px-3 py-1.5 rounded"
                     style={{ background: 'rgba(74,222,128,0.1)', color: '#166534', border: '1px solid rgba(74,222,128,0.2)', textDecoration: 'none' }}
@@ -356,7 +375,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
                 </div>
                 <div className="rounded-lg overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(180,200,230,0.4)' }}>
                   <img
-                    src={(result.execution as any).chartBase64}
+                    src={chartBlobUrl || (result.execution as any).chartBase64}
                     alt={`${result.plan.selectedTest} chart`}
                     style={{ width: '100%', height: 'auto', display: 'block' }}
                   />
