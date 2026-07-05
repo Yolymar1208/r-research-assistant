@@ -55,6 +55,9 @@ async function executeViaAPI(rScript: string, excelFilePath: string): Promise<RE
     }
 
     const result = await response.json()
+    console.log('[rExecutor] Response keys:', Object.keys(result))
+    console.log('[rExecutor] chartBase64 present:', !!result.chartBase64, '| chart_base64 present:', !!result.chart_base64)
+    console.log('[rExecutor] chartBase64 length:', result.chartBase64?.length || 0)
     const rawErr = result.error_message || result.errorMessage
     const rawOut = result.raw_output || result.rawOutput || result.output || ''
     return {
