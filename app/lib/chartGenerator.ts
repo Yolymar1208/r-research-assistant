@@ -40,6 +40,21 @@ suppressPackageStartupMessages({
   library(dplyr)
 })
 tryCatch({
+  # Find the main dataframe — AI-generated scripts use 'clean', 'data', or 'df'
+  df <- NULL
+  for (.nm in c("clean", "data", "df", "dat", "dataset", "linelist")) {
+    if (exists(.nm) && is.data.frame(get(.nm)) && nrow(get(.nm)) > 0) {
+      df <- get(.nm); break
+    }
+  }
+  if (is.null(df)) stop("Could not find dataframe (tried: clean, data, df, dat)")
+${code}
+${SAVE_CHART}
+}, error = function(e) {
+  cat("\n[CHART_ERROR]", conditionMessage(e), "\n")
+})`
+})
+tryCatch({
 ${code}
 ${SAVE_CHART}
 }, error = function(e) {
