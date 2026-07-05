@@ -220,7 +220,36 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
 
   const references = getReferencesForTest(result.plan.selectedTest)
 
-  // Convert base64 data URI to blob URL for Safari/iOS compatibility
+  const [isDownloadingPptx, setIsDownloadingPptx] = useState(false)
+
+  async function downloadPptx() {
+    setIsDownloadingPptx(true)
+    try {
+      const res = await fetch('/api/generate-pptx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: result.plan,
+          execution: result.execution,
+          aiInterpretation: result.aiInterpretation,
+          datasetName,
+          chartBase64: (result.execution as any)?.chartBase64,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to generate PowerPoint')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `JOANResearchOS_${result.plan.selectedTest}.pptx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('PPTX error:', e)
+    } finally {
+      setIsDownloadingPptx(false)
+    }
+  }
   const [chartBlobUrl, setChartBlobUrl] = useState<string | null>(null)
   useEffect(() => {
     const b64 = (result.execution as any)?.chartBase64
@@ -282,6 +311,9 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
           <button onClick={downloadRScript} className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 font-medium whitespace-nowrap">↓ analysis.R</button>
           <button onClick={downloadPDFReport} disabled={isGeneratingPdf} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 font-medium whitespace-nowrap disabled:opacity-60">
             {isGeneratingPdf ? 'Preparing PDF…' : '↓ PDF Report'}
+          </button>
+          <button onClick={downloadPptx} disabled={isDownloadingPptx} className="text-xs text-white px-3 py-1.5 rounded font-medium whitespace-nowrap disabled:opacity-60" style={{ background: isDownloadingPptx ? '#9a6022' : '#c8520a' }}>
+            {isDownloadingPptx ? 'Building PPTX…' : '↓ PowerPoint'}
           </button>
           <button onClick={downloadQGISExport} className="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 font-medium whitespace-nowrap">↓ QGIS CSV</button>
           <button
