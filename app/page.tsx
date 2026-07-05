@@ -208,6 +208,7 @@ function HomeContent() {
         errorMessage: execErrorMsg || null,
         executionTimeMs: Number(execData?.executionTimeMs || 0),
         rScript,
+        chartBase64: (execData as any)?.chartBase64 || undefined,
       }
       const interpretation = String(data.interpretation || '').replace(/\0/g, '')
       const result: AnalysisResult = { plan, rScript, execution, aiInterpretation: interpretation, completedAt: new Date().toISOString() }
