@@ -22,7 +22,7 @@ export default function TermsOfServicePage() {
 
       <div style={{ maxWidth: '760px', margin: '0 auto', padding: '60px 2rem 100px' }}>
         <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#1a3a5c', marginBottom: '8px' }}>Terms of Service</h1>
-        <p style={{ fontSize: '14px', color: '#888', marginBottom: '48px' }}>Last updated: June 30, 2026</p>
+        <p style={{ fontSize: '14px', color: '#888', marginBottom: '48px' }}>Last updated: July 6, 2026</p>
 
         <div style={sectionStyle}>
           <p style={pStyle}>
@@ -59,6 +59,7 @@ export default function TermsOfServicePage() {
           <p style={pStyle}>You agree to:</p>
           <ul style={{ paddingLeft: '20px', marginBottom: '12px' }}>
             <li style={liStyle}>Upload only de-identified data — no real patient names, exact addresses, or other directly identifying information</li>
+            <li style={liStyle}>Use the Line List Builder (/clean) to de-identify datasets before uploading them for analysis when your source data contains PHI</li>
             <li style={liStyle}>Use the service in compliance with your institution's data governance policies and applicable law</li>
             <li style={liStyle}>Not attempt to circumvent usage limits, rate limits, or security controls</li>
             <li style={liStyle}>Not use the service to process data you do not have the right to analyze</li>
@@ -69,11 +70,18 @@ export default function TermsOfServicePage() {
         <div style={sectionStyle}>
           <h2 style={h2Style}>4. Plans, Billing, and Payment</h2>
           <p style={pStyle}>
-            The Free plan includes 5 analyses per month at no cost. Pro and Institution plans are billed monthly via
-            manual GCash or bank transfer — there is no automatic recurring card payment. To upgrade, contact us using
-            the link on the pricing page; we will send payment instructions and activate your new plan within 24 hours
-            of confirming payment. Plan downgrades or cancellations should also be requested by email; downgrades take
-            effect at the end of the current billing period unless otherwise agreed.
+            The Free plan includes <strong>3 analyses per month</strong> at no cost. Paid plans are billed monthly via manual GCash or bank transfer — there is no automatic recurring card payment:
+          </p>
+          <ul style={{ paddingLeft: '20px', marginBottom: '12px' }}>
+            <li style={liStyle}><strong>Researcher</strong> — ₱1,499/month, 1 user, unlimited analyses</li>
+            <li style={liStyle}><strong>Team</strong> — ₱3,499/month, up to 5 users, unlimited analyses, shared team workspace</li>
+            <li style={liStyle}><strong>Institution</strong> — ₱8,999/month, up to 20 users, unlimited analyses, admin dashboard</li>
+          </ul>
+          <p style={pStyle}>
+            To upgrade, contact us at <a href="mailto:yolymarorfiano@yahoo.com" style={{ color: '#2e75b6' }}>yolymarorfiano@yahoo.com</a>; we will send payment instructions and activate your plan within 24 hours of confirming payment. Plan downgrades or cancellations should be requested by email; downgrades take effect at the end of the current billing period unless otherwise agreed.
+          </p>
+          <p style={pStyle}>
+            For Team and Institution plans, the account owner (team admin) is responsible for managing team member access. The admin may add or remove members at any time from the /team page. Removing a member immediately revokes their access.
           </p>
         </div>
 
