@@ -129,7 +129,11 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
     setIsGeneratingPdf(true)
     setPdfError(false)
     try {
-      await downloadReportAsPdf(result, result.plan.researchQuestion ? datasetName : 'Dataset')
+      await downloadReportAsPdf(
+        result,
+        result.plan.researchQuestion ? datasetName : 'Dataset',
+        (result.execution as any)?.chartBase64 || undefined
+      )
       onReportDownload?.()
     } catch (err) {
       console.error('PDF download failed:', err)
