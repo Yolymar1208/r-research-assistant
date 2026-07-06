@@ -66,7 +66,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 4. Ensure every auth user has a row in public.users
     for (const authUser of authUsers) {
       if (!planMap[authUser.id]) {
-        // Insert missing user into public.users
+        // Insert missing user — ignoreDuplicates prevents overwriting existing plan
         await supabaseAdmin
           .from('users')
           .upsert({
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             plan: 'free',
             analyses_limit: 3,
             created_at: authUser.created_at,
-          })
+          }, { onConflict: 'id', ignoreDuplicates: true })
         planMap[authUser.id] = { plan: 'free', analyses_limit: 3 }
       }
     }
