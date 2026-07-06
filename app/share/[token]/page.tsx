@@ -115,7 +115,7 @@ export default function SharePage({ params }: { params: { token: string } }) {
               </a>
             </div>
             <p style={{ marginTop: '20px', fontSize: '12px', color: '#5a6890' }}>
-              Free accounts include 5 analyses/month with all 19 statistical tests.
+              Free accounts include 3 analyses/month with all 19 statistical tests.
             </p>
           </div>
         )}
