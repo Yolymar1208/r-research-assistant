@@ -6,24 +6,94 @@ import type { CookieOptions } from '@supabase/ssr'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ADMIN_EMAIL = 'antetokounmpo8@gmail.com'
+const ADMIN_EMAIL = 'yolymarorfiano@yahoo.com'
 
-async function isAdmin(request: NextRequest): Promise<boolean> {
+async function getAdminEmail(request: NextRequest): Promise<string | null> {
   try {
     const response = NextResponse.next()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return request.cookies.getAll() }, setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) { cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)) } } }
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll() },
+          setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+            cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+          },
+        },
+      }
     )
     const { data: { user } } = await supabase.auth.getUser()
-    return user?.email === ADMIN_EMAIL
-  } catch { return false }
+    return user?.email ?? null
+  } catch { return null }
 }
 
-export async function GET(request: NextRequest) {
-  if (!await isAdmin(request)) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  const { data: users, error } = await supabaseAdmin.from('users').select('*').order('created_at', { ascending: false })
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true, users })
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const adminEmail = await getAdminEmail(request)
+  if (adminEmail !== ADMIN_EMAIL) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    // 1. Get all users from auth.users (service role — bypasses RLS)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+      perPage: 1000,
+    })
+    if (authError) throw authError
+
+    const authUsers = authData?.users || []
+
+    // 2. Get all rows from public.users for plan info
+    const { data: publicUsers } = await supabaseAdmin
+      .from('users')
+      .select('id, plan, analyses_limit')
+
+    const planMap = Object.fromEntries(
+      (publicUsers || []).map(u => [u.id, { plan: u.plan, analyses_limit: u.analyses_limit }])
+    )
+
+    // 3. Get current month usage
+    const monthYear = new Date().toISOString().slice(0, 7) // YYYY-MM
+    const { data: usage } = await supabaseAdmin
+      .from('usage_tracking')
+      .select('user_id, analyses_count')
+      .eq('month_year', monthYear)
+
+    const usageMap = Object.fromEntries(
+      (usage || []).map(u => [u.user_id, u.analyses_count])
+    )
+
+    // 4. Ensure every auth user has a row in public.users
+    for (const authUser of authUsers) {
+      if (!planMap[authUser.id]) {
+        // Insert missing user into public.users
+        await supabaseAdmin
+          .from('users')
+          .upsert({
+            id: authUser.id,
+            email: authUser.email || '',
+            plan: 'free',
+            analyses_limit: 3,
+            created_at: authUser.created_at,
+          })
+        planMap[authUser.id] = { plan: 'free', analyses_limit: 3 }
+      }
+    }
+
+    // 5. Build combined user list
+    const users = authUsers.map(u => ({
+      id: u.id,
+      email: u.email || '',
+      plan: planMap[u.id]?.plan || 'free',
+      analyses_limit: planMap[u.id]?.analyses_limit || 3,
+      created_at: u.created_at,
+      current_month_count: usageMap[u.id] || 0,
+    }))
+
+    return NextResponse.json({ success: true, users })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to load users.'
+    console.error('[admin/users]', message)
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
 }
