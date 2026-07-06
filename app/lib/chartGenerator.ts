@@ -213,6 +213,50 @@ export function getChartCode(plan: AnalysisPlan): string {
       '  } else stop("Could not identify survival time or outcome column")',
     ].join('\n'))
 
+    case 'paired_t_test':
+    case 'wilcoxon_signed_rank': return chartCode([
+      '  dv_col <- ' + dv + '; iv_col <- ' + iv,
+      '  df_raw <- df %>% dplyr::filter(!is.na(.data[[dv_col]]), !is.na(.data[[iv_col]])) %>%',
+      '    dplyr::mutate(val1 = suppressWarnings(as.numeric(.data[[dv_col]])),',
+      '                  val2 = suppressWarnings(as.numeric(.data[[iv_col]])),',
+      '                  pid = dplyr::row_number()) %>%',
+      '    dplyr::filter(!is.na(val1), !is.na(val2))',
+      '  df_long <- rbind(',
+      '    data.frame(pid=df_raw$pid, time=dv_col, value=df_raw$val1),',
+      '    data.frame(pid=df_raw$pid, time=iv_col, value=df_raw$val2))',
+      '  df_long$time <- factor(df_long$time, levels=c(dv_col, iv_col))',
+      '  means_df <- data.frame(',
+      '    time = factor(c(dv_col, iv_col), levels=c(dv_col, iv_col)),',
+      '    value = c(mean(df_raw$val1, na.rm=TRUE), mean(df_raw$val2, na.rm=TRUE)))',
+      '  p_chart <- ggplot(df_long, aes(x=time, y=value, group=pid)) +',
+      '    geom_line(alpha=0.18, color=\"#7c5cff\") +',
+      '    geom_point(aes(color=time), size=1.8, alpha=0.45) +',
+      '    geom_line(data=means_df, aes(x=time, y=value, group=1),',
+      '      linewidth=1.6, color=\"#e8b85c\", inherit.aes=FALSE) +',
+      '    geom_point(data=means_df, aes(x=time, y=value),',
+      '      size=5, shape=18, color=\"#e8b85c\", inherit.aes=FALSE) +',
+      '    scale_color_manual(values=c(\"#7c5cff\",\"#2e75b6\")) +',
+      '    labs(title=paste(\"Paired Comparison:\", dv_col, \"vs\", iv_col),',
+      '         subtitle=paste0(\"Mean pre: \",round(means_df$value[1],2),',
+      '           \"  |  Mean post: \",round(means_df$value[2],2)),',
+      '         x=NULL, y=\"Value\", caption=\"JOANResearchOS | All values computed by R\") +' + THEME_BASE + ' +',
+      '    theme(legend.position=\"none\")',
+    ].join('\n'))
+
+    case 'mcnemar': return chartCode([
+      '  dv_col <- ' + dv + '; iv_col <- ' + iv,
+      '  df_p <- df %>% dplyr::filter(!is.na(.data[[dv_col]]), !is.na(.data[[iv_col]])) %>%',
+      '    dplyr::mutate(x_var=as.character(.data[[iv_col]]), fill_var=as.character(.data[[dv_col]])) %>%',
+      '    dplyr::count(x_var, fill_var) %>% dplyr::group_by(x_var) %>%',
+      '    dplyr::mutate(pct=n/sum(n)*100) %>% dplyr::ungroup()',
+      '  p_chart <- ggplot(df_p, aes(x=x_var, y=pct, fill=fill_var)) +',
+      '    geom_col(position=\"dodge\", alpha=0.85, width=0.65) +',
+      '    scale_y_continuous(expand=expansion(mult=c(0,0.18)), labels=scales::percent_format(scale=1)) +',
+      '    scale_fill_brewer(palette=\"Set1\", name=dv_col) +',
+      '    labs(title=paste(\"McNemar:\", iv_col, \"vs\", dv_col),',
+      '         x=NULL, y=\"Percentage (%)\", caption=\"JOANResearchOS | All values computed by R\") +' + THEME_BASE,
+    ].join('\n'))
+
     case 'independent_t_test':
     case 'mann_whitney': return chartCode([
       '  dv_col <- ' + dv + '; iv_col <- ' + iv,
