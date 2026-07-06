@@ -47,11 +47,16 @@ const C = {
 
 function cleanText(t: string): string {
   return t
-    .replace(/^---+$/gm, '')
-    .replace(/\*\*/g, '')
-    .replace(/\[.*?\]/g, '')
-    .replace(/#{1,3} /g, '')
+    .replace(/^---+$/gm, '')           // remove markdown dividers
+    .replace(/\*\*/g, '')              // remove bold markers
+    .replace(/\[\w+\]/g, '')           // remove source tags [R] [WHO] etc
+    .replace(/\|[-:\s|]+\|/g, '')      // remove markdown table separator rows
+    .replace(/\|.*?\|/g, (m) => {      // convert table rows to readable text
+      return m.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim()
+    })
+    .replace(/^#{1,3}\s+/gm, '')       // remove heading markers
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/⚠️/g, '⚠')
     .trim()
 }
 
@@ -222,7 +227,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         x: 0.4, y: 0.9, w: 9.2, h: 2.0,
         fill: { color: C.navyMid }, line: { color: C.violet, pt: 1 }, rectRadius: 0.1,
       })
-      const sumText = summarySection.body.slice(0, 600)
+      let sumText = cleanText(summarySection.body).slice(0, 580)
+      const lastDot2 = sumText.lastIndexOf('.')
+      if (lastDot2 > 200) sumText = sumText.slice(0, lastDot2 + 1)
       s3.addText(sumText, {
         x: 0.6, y: 0.98, w: 8.8, h: 1.84, fontSize: 12, color: 'D1D9F0', fontFace: 'Calibri',
         align: 'left', valign: 'top', wrap: true, margin: 0,
@@ -277,7 +284,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       s4.addShape(SH.RECTANGLE, { x: pos.x, y: pos.y, w, h: 0.04, fill: { color: accentColors[i] }, line: { color: accentColors[i] } })
       const secTitle = sec.title.slice(0, 45)
       s4.addText(secTitle, { x: pos.x + 0.12, y: pos.y + 0.08, w: w - 0.24, h: 0.3, fontSize: 11, bold: true, color: accentColors[i], fontFace: 'Calibri', margin: 0 })
-      const bodyText = sec.body.slice(0, 320)
+      // Trim at sentence boundary to avoid mid-sentence cut-off
+      let bodyText = cleanText(sec.body).slice(0, 480)
+      const lastDot = bodyText.lastIndexOf('.')
+      if (lastDot > 200) bodyText = bodyText.slice(0, lastDot + 1)
       s4.addText(bodyText, { x: pos.x + 0.12, y: pos.y + 0.42, w: w - 0.24, h: h - 0.55, fontSize: 10, color: C.textMid, fontFace: 'Calibri', wrap: true, valign: 'top', margin: 0 })
     })
 
