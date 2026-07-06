@@ -256,20 +256,6 @@ export function getChartCode(plan: AnalysisPlan): string {
       '    theme(legend.position=\"none\")',
     ].join('\n'))
 
-    case 'mcnemar': return chartCode([
-      '  dv_col <- ' + dv + '; iv_col <- ' + iv,
-      '  df_p <- df %>% dplyr::filter(!is.na(.data[[dv_col]]), !is.na(.data[[iv_col]])) %>%',
-      '    dplyr::mutate(x_var=as.character(.data[[iv_col]]), fill_var=as.character(.data[[dv_col]])) %>%',
-      '    dplyr::count(x_var, fill_var) %>% dplyr::group_by(x_var) %>%',
-      '    dplyr::mutate(pct=n/sum(n)*100) %>% dplyr::ungroup()',
-      '  p_chart <- ggplot(df_p, aes(x=x_var, y=pct, fill=fill_var)) +',
-      '    geom_col(position=\"dodge\", alpha=0.85, width=0.65) +',
-      '    scale_y_continuous(expand=expansion(mult=c(0,0.18)), labels=scales::percent_format(scale=1)) +',
-      '    scale_fill_brewer(palette=\"Set1\", name=dv_col) +',
-      '    labs(title=paste(\"McNemar:\", iv_col, \"vs\", dv_col),',
-      '         x=NULL, y=\"Percentage (%)\", caption=\"JOANResearchOS | All values computed by R\") +' + THEME_BASE,
-    ].join('\n'))
-
     case 'independent_t_test':
     case 'mann_whitney': return chartCode([
       '  dv_col <- ' + dv + '; iv_col <- ' + iv,
