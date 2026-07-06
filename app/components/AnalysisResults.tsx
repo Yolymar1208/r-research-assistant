@@ -252,8 +252,11 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
   }
   const [chartBlobUrl, setChartBlobUrl] = useState<string | null>(null)
   useEffect(() => {
-    const b64 = (result.execution as any)?.chartBase64
+    let b64 = (result.execution as any)?.chartBase64
     if (!b64) { setChartBlobUrl(null); return }
+    // R sometimes serializes strings as arrays — coerce to string
+    if (Array.isArray(b64)) b64 = b64[0]
+    if (typeof b64 !== 'string') { setChartBlobUrl(null); return }
     try {
       const base64Data = b64.replace(/^data:image\/png;base64,/, '')
       const binary = atob(base64Data)
@@ -264,7 +267,7 @@ export default function AnalysisResults({ result, datasetName = 'Dataset', onRep
       setChartBlobUrl(url)
       return () => URL.revokeObjectURL(url)
     } catch {
-      setChartBlobUrl(b64) // fallback to data URI
+      setChartBlobUrl(typeof b64 === 'string' ? b64 : null)
     }
   }, [(result.execution as any)?.chartBase64])
 
