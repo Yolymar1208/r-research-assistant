@@ -222,7 +222,7 @@ export default function RegisterPage() {
           {/* Free tier nudge */}
           <div style={{ marginTop: '16px', padding: '10px 12px', borderRadius: '10px', background: 'rgba(124,92,255,0.06)', border: '1px solid rgba(124,92,255,0.18)', textAlign: 'center' }}>
             <p style={{ fontSize: '12px', color: '#8b9bc4', margin: 0 }}>
-              Free plan includes <span style={{ color: '#c4b5fd', fontWeight: 600 }}>5 analyses/month</span> with all 19 statistical tests — no credit card needed.
+              Free plan includes <span style={{ color: '#c4b5fd', fontWeight: 600 }}>3 analyses/month</span> with all 19 statistical tests — no credit card needed.
             </p>
           </div>
 
