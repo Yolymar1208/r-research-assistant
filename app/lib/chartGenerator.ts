@@ -215,7 +215,20 @@ export function getChartCode(plan: AnalysisPlan): string {
 
     case 'paired_t_test':
     case 'wilcoxon_signed_rank': return chartCode([
-      '  dv_col <- ' + dv + '; iv_col <- ' + iv,
+      '  # For paired tests, dv may contain both columns as "col1 and col2"',
+      '  paired_raw_dv <- ' + dv,
+      '  paired_raw_iv <- ' + iv,
+      '  if (!is.null(paired_raw_dv) && grepl(" and ", paired_raw_dv, fixed=TRUE)) {',
+      '    parts <- trimws(strsplit(paired_raw_dv, " and ", fixed=TRUE)[[1]])',
+      '    dv_col <- parts[1]; iv_col <- parts[2]',
+      '  } else {',
+      '    dv_col <- paired_raw_dv; iv_col <- paired_raw_iv',
+      '  }',
+      '  # Fallback: find two numeric columns if dv/iv still not valid',
+      '  if (is.null(dv_col) || !(dv_col %in% names(df)) || is.null(iv_col) || !(iv_col %in% names(df))) {',
+      '    num_cols <- names(df)[sapply(df, function(x) is.numeric(x) || !all(is.na(suppressWarnings(as.numeric(x)))))]',
+      '    if (length(num_cols) >= 2) { dv_col <- num_cols[1]; iv_col <- num_cols[2] }',
+      '  }',
       '  df_raw <- df %>% dplyr::filter(!is.na(.data[[dv_col]]), !is.na(.data[[iv_col]])) %>%',
       '    dplyr::mutate(val1 = suppressWarnings(as.numeric(.data[[dv_col]])),',
       '                  val2 = suppressWarnings(as.numeric(.data[[iv_col]])),',
