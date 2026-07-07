@@ -131,20 +131,28 @@ export default function AdminPage() {
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '28px 1.5rem', position: 'relative', zIndex: 10 }}>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-          {[
-            { label: 'Total users', value: stats.total, color: '#f1f4fc' },
-            { label: 'Free', value: stats.free, color: '#6b7aa3' },
-            { label: 'Researcher', value: stats.researcher, color: '#60a5fa' },
-            { label: 'Team', value: stats.team, color: '#c4b5fd' },
-            { label: 'Institution', value: stats.institution, color: '#e8b85c' },
-            { label: 'Analyses this month', value: stats.thisMonth, color: '#4ade80' },
-          ].map(s => (
-            <div key={s.label} style={{ ...glass, padding: '16px 20px' }}>
-              <p style={{ fontSize: '28px', fontWeight: 900, color: s.color, margin: '0 0 4px', fontFamily: 'var(--font-space-grotesk), system-ui' }}>{s.value}</p>
-              <p style={{ fontSize: '12px', color: '#6b7aa3', margin: 0 }}>{s.label}</p>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '14px', flex: 1 }}>
+            {[
+              { label: 'Total users', value: stats.total, color: '#f1f4fc' },
+              { label: 'Free', value: stats.free, color: '#6b7aa3' },
+              { label: 'Researcher', value: stats.researcher, color: '#60a5fa' },
+              { label: 'Team', value: stats.team, color: '#c4b5fd' },
+              { label: 'Institution', value: stats.institution, color: '#e8b85c' },
+              { label: 'Analyses this month', value: stats.thisMonth, color: '#4ade80' },
+            ].map(s => (
+              <div key={s.label} style={{ ...glass, padding: '16px 20px' }}>
+                <p style={{ fontSize: '28px', fontWeight: 900, color: s.color, margin: '0 0 4px', fontFamily: 'var(--font-space-grotesk), system-ui' }}>{s.value}</p>
+                <p style={{ fontSize: '12px', color: '#6b7aa3', margin: 0 }}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={loadUsers}
+            style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(124,92,255,0.3)', background: 'rgba(124,92,255,0.08)', color: '#c4b5fd', fontSize: '13px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            ↻ Refresh
+          </button>
         </div>
 
         {/* Toast notifications */}
