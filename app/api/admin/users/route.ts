@@ -52,16 +52,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       (publicUsers || []).map(u => [u.id, { plan: u.plan, analyses_limit: u.analyses_limit }])
     )
 
-    // 3. Get current month usage
-    const monthYear = new Date().toISOString().slice(0, 7) // YYYY-MM
-    const { data: usage } = await supabaseAdmin
-      .from('usage_tracking')
-      .select('user_id, analyses_count')
-      .eq('month_year', monthYear)
+    // 3. Get current month analysis count from analysis_history (tracks ALL plans)
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const { data: history } = await supabaseAdmin
+      .from('analysis_history')
+      .select('user_id')
+      .gte('created_at', monthStart)
 
-    const usageMap = Object.fromEntries(
-      (usage || []).map(u => [u.user_id, u.analyses_count])
-    )
+    const usageMap: Record<string, number> = {}
+    for (const row of history || []) {
+      if (row.user_id) usageMap[row.user_id] = (usageMap[row.user_id] || 0) + 1
+    }
 
     // 4. Ensure every auth user has a row in public.users
     for (const authUser of authUsers) {
