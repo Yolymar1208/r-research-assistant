@@ -22,10 +22,13 @@ export function validateColumn(
   const issues: ValidationIssue[] = []
 
   // Check for missing values
-  const missingRows = values
-    .map((v, idx) => ({ idx, val: v }))
-    .filter(v => v.val === null || v.val === undefined || v.val === '')
-    .map(v => v.idx)
+  const missingRows: number[] = []
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]
+    if (v === null || v === undefined || v === '') {
+      missingRows.push(i)
+    }
+  }
 
   if (missingRows.length > 0) {
     issues.push({
@@ -40,18 +43,31 @@ export function validateColumn(
   }
 
   if (columnType === 'numeric') {
-    const numbers = values.filter(v => typeof v === 'number')
+    const numbers: number[] = []
+    for (let i = 0; i < values.length; i++) {
+      if (typeof values[i] === 'number') numbers.push(values[i])
+    }
     if (numbers.length > 0) {
-      const mean = numbers.reduce((a, b) => a + b, 0) / numbers.length
-      const std = Math.sqrt(numbers.reduce((a, b) => a + (b - mean) ** 2, 0) / numbers.length)
+      let sum = 0
+      for (let i = 0; i < numbers.length; i++) {
+        sum += numbers[i]
+      }
+      const mean = sum / numbers.length
+      let squaredDiffSum = 0
+      for (let i = 0; i < numbers.length; i++) {
+        squaredDiffSum += (numbers[i] - mean) ** 2
+      }
+      const std = Math.sqrt(squaredDiffSum / numbers.length)
       
       // Check for out-of-range values
       const validRange = getValidRange(column)
       if (validRange) {
-        const outOfRange = values
-          .map((v, idx) => ({ idx, val: v }))
-          .filter(v => typeof v.val === 'number' && (v.val < validRange.min || v.val > validRange.max))
-          .map(v => v.idx)
+        const outOfRange: number[] = []
+        for (let i = 0; i < values.length; i++) {
+          if (typeof values[i] === 'number' && (values[i] < validRange.min || values[i] > validRange.max)) {
+            outOfRange.push(i)
+          }
+        }
         if (outOfRange.length > 0) {
           issues.push({
             type: 'out_of_range',
@@ -64,10 +80,12 @@ export function validateColumn(
       }
 
       // Check for outliers (3 standard deviations)
-      const outliers = numbers
-        .map((v, idx) => ({ idx, val: v }))
-        .filter(v => Math.abs(v.val - mean) > 3 * std)
-        .map(v => v.idx)
+      const outliers: number[] = []
+      for (let i = 0; i < numbers.length; i++) {
+        if (Math.abs(numbers[i] - mean) > 3 * std) {
+          outliers.push(i)
+        }
+      }
       if (outliers.length > 0) {
         issues.push({
           type: 'unlikely',
@@ -81,32 +99,46 @@ export function validateColumn(
   }
 
   if (columnType === 'categorical') {
-    const uniqueValues = new Set(values.filter(v => v !== null && v !== undefined && v !== '').map(v => String(v)))
+    const uniqueValues = new Set<string>()
     const valueCounts = new Map<string, number>()
-    for (const v of values) {
+    
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i]
       if (v !== null && v !== undefined && v !== '') {
         const key = String(v)
+        if (!uniqueValues.has(key)) uniqueValues.add(key)
         valueCounts.set(key, (valueCounts.get(key) || 0) + 1)
       }
     }
 
     // Check for inconsistent casing or variations
     const variations = new Map<string, string[]>()
-    for (const [key] of valueCounts) {
+    // FIXED: Use Array.from() to iterate over Map entries
+    const valueCountsEntries = Array.from(valueCounts.entries())
+    for (let i = 0; i < valueCountsEntries.length; i++) {
+      const [key] = valueCountsEntries[i]
       const lower = key.toLowerCase()
       if (!variations.has(lower)) variations.set(lower, [])
-      variations.get(lower)!.push(key)
+      const arr = variations.get(lower)
+      if (arr) arr.push(key)
     }
-    for (const [lower, variants] of variations) {
+    
+    const variationsEntries = Array.from(variations.entries())
+    for (let i = 0; i < variationsEntries.length; i++) {
+      const [lower, variants] = variationsEntries[i]
       if (variants.length > 1) {
+        const affectedRows: number[] = []
+        for (let j = 0; j < values.length; j++) {
+          const v = values[j]
+          if (v !== null && v !== undefined && v !== '' && variants.includes(String(v))) {
+            affectedRows.push(j)
+          }
+        }
         issues.push({
           type: 'inconsistent',
           severity: 'warning',
           description: `Inconsistent casing/variations: ${variants.slice(0, 3).join(', ')}${variants.length > 3 ? ` +${variants.length - 3} more` : ''}`,
-          affectedRows: values
-            .map((v, idx) => ({ idx, val: v }))
-            .filter(v => v !== null && v !== undefined && v !== '' && variants.includes(String(v)))
-            .map(v => v.idx),
+          affectedRows: affectedRows,
           suggestedFix: `Standardize to: ${variants[0].toLowerCase()}`,
         })
       }
