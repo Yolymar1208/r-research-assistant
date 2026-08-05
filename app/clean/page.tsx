@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import Starfield from '@/app/components/Starfield'
 import { detectSource, SOURCE_OPTIONS } from '@/app/lib/sourceDetector'
@@ -9,17 +9,21 @@ import {
   generateCleaningSteps,
   applyCleaningSteps,
   deduplicateRows,
+  correctDateOutlier,
 } from '@/app/lib/lineListCleaner'
 import { generateQualityReport } from '@/app/lib/dataQualityChecker'
+import { parseResearchQuestion } from '@/app/lib/researchQuestionParser'
 import DataQualityReport from '@/app/components/DataQualityReport'
+import DataAdequacyReport from '@/app/components/DataAdequacyReport'
 import type { DataSource, SourceDetectionResult } from '@/app/lib/sourceDetector'
 import type { ColumnClassification } from '@/app/lib/phiDetector'
 import type { CleaningStep, RawRow, AISuggestion } from '@/app/lib/lineListCleaner'
 import type { QualityIssue } from '@/app/lib/dataQualityChecker'
+import type { AdequacyResult } from '@/app/lib/researchQuestionParser'
 
-type Step = 1 | 2 | 3 | 4 | 5
+type Step = 1 | 1.5 | 2 | 3 | 4 | 5
 
-const STEP_LABELS = ['Upload', 'Quality Check', 'De-identify', 'Clean', 'Export']
+const STEP_LABELS = ['Upload', 'Adequacy Check', 'Quality Check', 'De-identify', 'Clean', 'Export']
 
 const glass: React.CSSProperties = {
   background: 'rgba(18,26,48,0.65)',
@@ -42,6 +46,10 @@ export default function CleanPage() {
   const [selectedSource, setSelectedSource] = useState<DataSource>('generic')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Step 1.5: Adequacy Check
+  const [adequacyResult, setAdequacyResult] = useState<AdequacyResult | null>(null)
+  const [isProcessingAdequacy, setIsProcessingAdequacy] = useState(false)
 
   // Step 2: Quality Report
   const [qualityReport, setQualityReport] = useState<any>(null)
@@ -99,10 +107,13 @@ export default function CleanPage() {
     if (file) readFile(file)
   }
 
-  // ─── Step 2: Quality Check ────────────────────────────────────────────────────
+  // ─── Step 1.5 & 2: Quality + Adequacy Check ──────────────────────────────────
 
   function proceedToQualityCheck() {
+    if (!rows.length) return
+
     setIsProcessingQuality(true)
+    setIsProcessingAdequacy(true)
 
     // Generate quality report
     const report = generateQualityReport(
@@ -114,15 +125,43 @@ export default function CleanPage() {
 
     setQualityReport(report)
     setQualityIssues(report.issues)
+
+    // Run adequacy check
+    const classifications = classifyColumns(allColumns)
+    const keep = new Set(classifications.filter(c => c.classification === 'keep').map(c => c.name))
+    const remove = new Set(classifications.filter(c => c.classification !== 'keep').map(c => c.name))
+
+    const adequacy = parseResearchQuestion(
+      researchQuestion,
+      allColumns,
+      Array.from(keep),
+      Array.from(remove)
+    )
+
+    setAdequacyResult(adequacy)
     setIsProcessingQuality(false)
-    setStep(2)
+    setIsProcessingAdequacy(false)
+
+    // Go to adequacy check step if there are issues or warnings
+    if (!adequacy.isAdequate || adequacy.warnings.length > 0) {
+      setStep(1.5)
+    } else {
+      setStep(2)
+    }
   }
+
+  function handleProceedFromAdequacy() {
+    if (adequacyResult && adequacyResult.isAdequate) {
+      setStep(2)
+    }
+  }
+
+  // ─── Quality Report Fix Handlers ─────────────────────────────────────────────
 
   function handleApplyQualityFix(issueId: string) {
     const issue = qualityIssues.find(i => i.id === issueId)
     if (!issue || !issue.autoFixable) return
 
-    // Apply the fix to the data
     const fixAction = issue.fixAction
     let newRows = [...rows]
 
@@ -133,7 +172,6 @@ export default function CleanPage() {
       const indices = new Set(rowIndices)
       newRows = newRows.map((row, idx) => {
         if (indices.has(idx) && row[col]) {
-          // Correct the date
           const corrected = correctDateOutlier(String(row[col]), targetYear)
           return { ...row, [col]: corrected }
         }
@@ -168,7 +206,6 @@ export default function CleanPage() {
 
     setRows(newRows)
 
-    // Mark issue as applied in the UI
     setQualityIssues(prev => prev.map(i =>
       i.id === issueId ? { ...i, autoFixable: false } : i
     ))
@@ -188,7 +225,6 @@ export default function CleanPage() {
   }
 
   function handleProceedFromQualityCheck() {
-    // Check if all critical issues are resolved
     const unresolvedCritical = qualityIssues.filter(
       i => i.severity === 'critical' && i.autoFixable
     )
@@ -197,26 +233,37 @@ export default function CleanPage() {
       return
     }
 
-    // Proceed to de-identification
     const classifications = classifyColumns(allColumns)
     setColumnClassifications(classifications)
-    const keep = new Set(classifications.filter(c => c.classification === 'keep').map(c => c.name))
-    const remove = new Set(classifications.filter(c => c.classification !== 'keep').map(c => c.name))
+
+    let keep = new Set(classifications.filter(c => c.classification === 'keep').map(c => c.name))
+    let remove = new Set(classifications.filter(c => c.classification !== 'keep').map(c => c.name))
+
+    // PROTECT required columns from being removed
+    if (adequacyResult) {
+      for (const req of adequacyResult.requiredColumns) {
+        // Check if any column matching this requirement is in the remove set
+        for (const col of remove) {
+          const colLower = col.toLowerCase()
+          // Check against aliases
+          const aliases = req.aliases || [req.name]
+          for (const alias of aliases) {
+            if (colLower.includes(alias.toLowerCase()) || alias.toLowerCase().includes(colLower)) {
+              // Move from remove to keep
+              remove.delete(col)
+              keep.add(col)
+              break
+            }
+          }
+        }
+      }
+    }
+
     setKeepCols(keep)
     setRemoveCols(remove)
     const bday = classifications.find(c => c.specialAction === 'convert_age')
     setBirthdayColumn(bday?.name ?? null)
     setStep(3)
-  }
-
-  // Helper function for date correction
-  function correctDateOutlier(date: string, targetYear: number): string {
-    const d = new Date(date)
-    if (!isNaN(d.getTime())) {
-      d.setFullYear(targetYear)
-      return d.toISOString().slice(0, 10)
-    }
-    return date
   }
 
   // ─── Step 3: De-identify ──────────────────────────────────────────────────────
@@ -227,6 +274,18 @@ export default function CleanPage() {
   }
 
   function moveToRemove(colName: string) {
+    // Check if this column is required for the research question
+    if (adequacyResult) {
+      for (const req of adequacyResult.requiredColumns) {
+        const aliases = req.aliases || [req.name]
+        for (const alias of aliases) {
+          if (colName.toLowerCase().includes(alias.toLowerCase()) || alias.toLowerCase().includes(colName.toLowerCase())) {
+            alert(`"${colName}" is required for your research question and cannot be removed.`)
+            return
+          }
+        }
+      }
+    }
     setKeepCols(prev => { const s = new Set(Array.from(prev)); s.delete(colName); return s })
     setRemoveCols(prev => new Set([...Array.from(prev), colName]))
   }
@@ -352,20 +411,21 @@ export default function CleanPage() {
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: '28px 1.5rem', position: 'relative', zIndex: 10 }}>
 
         {/* Step indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '28px', overflowX: 'auto' }}>
           {STEP_LABELS.map((label, i) => {
             const num = i + 1
             const isDone = step > num
             const isCurrent = step === num
+            const displayNum = num === 2 ? 1.5 : num === 3 ? 2 : num === 4 ? 3 : num === 5 ? 4 : num === 6 ? 5 : num
             return (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < 4 ? 1 : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < 5 ? 1 : 'none', minWidth: '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                   <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flexShrink: 0, background: isDone ? '#4ade80' : isCurrent ? 'linear-gradient(135deg,#7c5cff,#2e75b6)' : 'rgba(255,255,255,0.06)', color: isDone || isCurrent ? '#fff' : '#6b7aa3', border: isDone ? 'none' : isCurrent ? 'none' : '1px solid rgba(255,255,255,0.12)' }}>
-                    {isDone ? '✓' : num}
+                    {isDone ? '✓' : displayNum}
                   </div>
                   <span style={{ fontSize: '12px', fontWeight: isCurrent ? 700 : 400, color: isDone ? '#4ade80' : isCurrent ? '#c4b5fd' : '#6b7aa3', whiteSpace: 'nowrap' }}>{label}</span>
                 </div>
-                {i < 4 && <div style={{ flex: 1, height: '1px', background: isDone ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)', margin: '0 12px' }} />}
+                {i < 5 && <div style={{ flex: 1, height: '1px', background: isDone ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)', margin: '0 12px', minWidth: '10px' }} />}
               </div>
             )
           })}
@@ -419,7 +479,7 @@ export default function CleanPage() {
                       onChange={(e) => setResearchQuestion(e.target.value)}
                       onFocus={() => setIsQuestionFocused(true)}
                       onBlur={() => setIsQuestionFocused(false)}
-                      placeholder="e.g., What are the demographic and exposure risk factors associated with ILI among patients in Magsaysay?"
+                      placeholder="e.g., What is the attack rate of ILI by barangay in Magsaysay?"
                       style={{
                         width: '100%',
                         background: 'transparent',
@@ -468,10 +528,10 @@ export default function CleanPage() {
                 {fileName && (
                   <button
                     onClick={proceedToQualityCheck}
-                    disabled={isProcessingQuality}
-                    style={{ marginTop: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', cursor: isProcessingQuality ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', color: '#fff', background: 'linear-gradient(135deg, #7c5cff, #2e75b6)', boxShadow: '0 4px 16px rgba(124,92,255,0.3)', opacity: isProcessingQuality ? 0.7 : 1 }}
+                    disabled={isProcessingQuality || isProcessingAdequacy}
+                    style={{ marginTop: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', cursor: isProcessingQuality || isProcessingAdequacy ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', color: '#fff', background: 'linear-gradient(135deg, #7c5cff, #2e75b6)', boxShadow: '0 4px 16px rgba(124,92,255,0.3)', opacity: isProcessingQuality || isProcessingAdequacy ? 0.7 : 1 }}
                   >
-                    {isProcessingQuality ? 'Checking quality...' : 'Check Data Quality →'}
+                    {isProcessingQuality || isProcessingAdequacy ? 'Checking...' : 'Check Data Quality →'}
                   </button>
                 )}
               </div>
@@ -483,6 +543,16 @@ export default function CleanPage() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* ── STEP 1.5: Adequacy Check ── */}
+        {step === 1.5 && adequacyResult && (
+          <DataAdequacyReport
+            result={adequacyResult}
+            onProceed={handleProceedFromAdequacy}
+            onBack={() => setStep(1)}
+            isProcessing={isProcessingAdequacy}
+          />
         )}
 
         {/* ── STEP 2: Quality Report ── */}
@@ -507,6 +577,11 @@ export default function CleanPage() {
               <p style={{ fontSize: '12px', color: '#d97706', margin: '4px 0 0', lineHeight: 1.5 }}>
                 Review the columns below. Move any identifying information to REMOVE before proceeding. PHI never leaves your device during this step.
               </p>
+              {adequacyResult && adequacyResult.requiredColumns.length > 0 && (
+                <p style={{ fontSize: '11px', color: '#60a5fa', margin: '6px 0 0' }}>
+                  💡 Required columns for your research question are protected and cannot be removed.
+                </p>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -518,17 +593,42 @@ export default function CleanPage() {
                 <div style={{ padding: '12px', maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {Array.from(removeCols).map(col => {
                     const cls = columnClassifications.find(c => c.name === col)
+                    const isRequired = adequacyResult?.requiredColumns.some(req => {
+                      const aliases = req.aliases || [req.name]
+                      return aliases.some(alias => 
+                        col.toLowerCase().includes(alias.toLowerCase()) || 
+                        alias.toLowerCase().includes(col.toLowerCase())
+                      )
+                    })
                     return (
-                      <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '6px', gap: '8px' }}>
+                      <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: isRequired ? 'rgba(96,165,250,0.12)' : 'rgba(248,113,113,0.08)', border: `1px solid ${isRequired ? 'rgba(96,165,250,0.3)' : 'rgba(248,113,113,0.2)'}`, borderRadius: '6px', gap: '8px' }}>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ margin: 0, fontSize: '12px', color: '#fca5a5', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col}</p>
+                          <p style={{ margin: 0, fontSize: '12px', color: isRequired ? '#60a5fa' : '#fca5a5', fontWeight: isRequired ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {col}
+                            {isRequired && ' 🔒'}
+                          </p>
                           {cls?.specialAction === 'convert_age' && (
                             <button onClick={() => setBirthdayColumn(col)} style={{ fontSize: '10px', color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: '2px' }}>
                               → Convert to age instead
                             </button>
                           )}
                         </div>
-                        <button onClick={() => moveToKeep(col)} style={{ fontSize: '10px', color: '#4ade80', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '4px', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}>Keep →</button>
+                        <button 
+                          onClick={() => moveToKeep(col)} 
+                          disabled={isRequired}
+                          style={{ 
+                            fontSize: '10px', 
+                            color: isRequired ? '#6b7aa3' : '#4ade80', 
+                            background: isRequired ? 'rgba(255,255,255,0.04)' : 'rgba(74,222,128,0.1)', 
+                            border: `1px solid ${isRequired ? 'rgba(255,255,255,0.08)' : 'rgba(74,222,128,0.3)'}`, 
+                            borderRadius: '4px', 
+                            cursor: isRequired ? 'not-allowed' : 'pointer', 
+                            padding: '2px 6px', 
+                            flexShrink: 0 
+                          }}
+                        >
+                          {isRequired ? '🔒 Required' : 'Keep →'}
+                        </button>
                       </div>
                     )
                   })}
@@ -542,12 +642,39 @@ export default function CleanPage() {
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#6b7aa3' }}>Analysis data — no PHI</p>
                 </div>
                 <div style={{ padding: '12px', maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {Array.from(keepCols).map(col => (
-                    <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '6px', gap: '8px' }}>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col}</p>
-                      <button onClick={() => moveToRemove(col)} style={{ fontSize: '10px', color: '#fca5a5', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '4px', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}>← Remove</button>
-                    </div>
-                  ))}
+                  {Array.from(keepCols).map(col => {
+                    const isRequired = adequacyResult?.requiredColumns.some(req => {
+                      const aliases = req.aliases || [req.name]
+                      return aliases.some(alias => 
+                        col.toLowerCase().includes(alias.toLowerCase()) || 
+                        alias.toLowerCase().includes(col.toLowerCase())
+                      )
+                    })
+                    return (
+                      <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: isRequired ? 'rgba(96,165,250,0.08)' : 'rgba(74,222,128,0.04)', border: `1px solid ${isRequired ? 'rgba(96,165,250,0.25)' : 'rgba(74,222,128,0.15)'}`, borderRadius: '6px', gap: '8px' }}>
+                        <p style={{ margin: 0, fontSize: '12px', color: isRequired ? '#60a5fa' : '#86efac', fontWeight: isRequired ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {col}
+                          {isRequired && ' 🔒'}
+                        </p>
+                        <button 
+                          onClick={() => moveToRemove(col)} 
+                          disabled={isRequired}
+                          style={{ 
+                            fontSize: '10px', 
+                            color: isRequired ? '#6b7aa3' : '#fca5a5', 
+                            background: isRequired ? 'rgba(255,255,255,0.04)' : 'rgba(248,113,113,0.1)', 
+                            border: `1px solid ${isRequired ? 'rgba(255,255,255,0.08)' : 'rgba(248,113,113,0.25)'}`, 
+                            borderRadius: '4px', 
+                            cursor: isRequired ? 'not-allowed' : 'pointer', 
+                            padding: '2px 6px', 
+                            flexShrink: 0 
+                          }}
+                        >
+                          {isRequired ? '🔒 Required' : '← Remove'}
+                        </button>
+                      </div>
+                    )
+                  })}
                   {keepCols.size === 0 && <p style={{ fontSize: '12px', color: '#6b7aa3', textAlign: 'center', padding: '20px 0' }}>No columns selected</p>}
                 </div>
               </div>
@@ -653,7 +780,7 @@ export default function CleanPage() {
           </div>
         )}
 
-        {/* ── STEP 5: Preview & Export ── */}
+        {/* ── STEP 5: Export ── */}
         {step === 5 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ ...glass, padding: '16px 20px', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.3)' }}>
@@ -709,7 +836,7 @@ export default function CleanPage() {
               </button>
             </div>
 
-            <button onClick={() => { setStep(1); setFileName(''); setRows([]); setAllColumns([]); setDetectedSource(null); setCleanedRows([]); setQualityReport(null) }}
+            <button onClick={() => { setStep(1); setFileName(''); setRows([]); setAllColumns([]); setDetectedSource(null); setCleanedRows([]); setQualityReport(null); setAdequacyResult(null) }}
               style={{ padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: '#6b7aa3', cursor: 'pointer', fontSize: '13px' }}>
               Clean another file
             </button>
