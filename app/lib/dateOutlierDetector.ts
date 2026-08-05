@@ -44,13 +44,16 @@ export function detectDateOutliers(
 
   // Find most common year
   const yearCounts = new Map<number, number>()
-  for (const pd of parsedDates) {
-    const year = pd.date.getFullYear()
+  for (let i = 0; i < parsedDates.length; i++) {
+    const year = parsedDates[i].date.getFullYear()
     yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
   }
   let mostCommonYear = 0
   let maxCount = 0
-  for (const [year, count] of yearCounts) {
+  // FIXED: Use Array.from() to iterate over Map entries
+  const entries = Array.from(yearCounts.entries())
+  for (let i = 0; i < entries.length; i++) {
+    const [year, count] = entries[i]
     if (count > maxCount) {
       maxCount = count
       mostCommonYear = year
@@ -58,13 +61,18 @@ export function detectDateOutliers(
   }
 
   // Find date range
-  const allDates = parsedDates.map(pd => pd.date)
-  const minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
-  const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
+  let minDate = parsedDates[0].date
+  let maxDate = parsedDates[0].date
+  for (let i = 1; i < parsedDates.length; i++) {
+    const d = parsedDates[i].date
+    if (d.getTime() < minDate.getTime()) minDate = d
+    if (d.getTime() > maxDate.getTime()) maxDate = d
+  }
 
   // Detect outliers
   const outliers: DateOutlier[] = []
-  for (const pd of parsedDates) {
+  for (let i = 0; i < parsedDates.length; i++) {
+    const pd = parsedDates[i]
     const yearDiff = Math.abs(pd.date.getFullYear() - mostCommonYear)
     if (yearDiff > 1) {
       // Suggest correction
@@ -105,10 +113,11 @@ function parseDateString(str: string): Date | null {
     /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
   ]
 
-  for (const format of formats) {
+  for (let i = 0; i < formats.length; i++) {
+    const format = formats[i]
     const match = str.match(format)
     if (match) {
-      let [_, a, b, c] = match
+      const [_, a, b, c] = match
       // Try MM/DD/YYYY first
       let d = new Date(`${c}-${a.padStart(2, '0')}-${b.padStart(2, '0')}`)
       if (!isNaN(d.getTime())) return d
