@@ -64,29 +64,39 @@ export function generateQualityReport(
   const issues: QualityIssue[] = []
   let issueId = 0
 
-  // 1. Check for date outliers
+  // 1. Check for date outliers - IMPROVED
   const dateColumn = findDateColumn(columns)
   if (dateColumn) {
     const dateOutliers = detectDateOutliers(rows, dateColumn)
     if (dateOutliers.length > 0) {
+      const mostCommonYear = getMostCommonYear(rows, dateColumn)
+      // Build list of affected values for display
+      const affectedValues: string[] = []
+      for (let i = 0; i < dateOutliers.length; i++) {
+        const idx = dateOutliers[i]
+        const val = rows[idx][dateColumn]
+        if (val) affectedValues.push(String(val))
+      }
+      
       issues.push({
         id: `issue_${issueId++}`,
         type: 'date_outlier',
         severity: 'warning',
-        title: `Date outlier found in "${dateColumn}"`,
-        description: `${dateOutliers.length} date${dateOutliers.length > 1 ? 's' : ''} fall outside the expected range for this dataset.`,
+        title: `Date outlier${dateOutliers.length > 1 ? 's' : ''} found in "${dateColumn}"`,
+        description: `${dateOutliers.length} date${dateOutliers.length > 1 ? 's' : ''} (${affectedValues.slice(0, 3).join(', ')}${affectedValues.length > 3 ? ` +${affectedValues.length - 3} more` : ''}) fall outside the expected year range.`,
         whyItMatters: 'Outlier dates can distort epidemic curves and time-series analysis. A single date from a different year will appear as a separate bar, making the outbreak pattern harder to interpret.',
-        suggestedFix: `Correct these dates to the most common year (${getMostCommonYear(rows, dateColumn)})`,
+        suggestedFix: `Correct these dates to ${mostCommonYear}`,
         fixAction: {
           type: 'correct_date',
           payload: {
             column: dateColumn,
-            targetYear: getMostCommonYear(rows, dateColumn),
+            targetYear: mostCommonYear,
             rowIndices: dateOutliers,
           },
         },
         affectedRows: dateOutliers,
         affectedColumns: [dateColumn],
+        affectedValues: affectedValues,
         autoFixable: true,
       })
     }
@@ -141,7 +151,6 @@ export function generateQualityReport(
         valueMap.set(val, (valueMap.get(val) || 0) + 1)
       }
     }
-    // If there are multiple variations of the same category
     const variations = detectValueVariations(uniqueValues, col)
     if (variations.length > 0) {
       const standardMap = createStandardizationMap(variations, col)
@@ -213,7 +222,7 @@ export function generateQualityReport(
         affectedRows: outlierRows,
         affectedColumns: [col],
         affectedValues: outlierValues,
-        autoFixable: false, // User should review manually
+        autoFixable: false,
       })
     }
   }
@@ -289,9 +298,6 @@ export function generateQualityReport(
       autoFixable: true,
     })
   }
-
-  // 8. PHI detection (already handled by phiDetector.ts)
-  // We'll let the existing phiDetector handle this in the UI
 
   // Build summary
   let critical = 0
@@ -429,7 +435,8 @@ function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
   // Find outliers (dates more than 1 year from the most common year)
   const outliers: number[] = []
   for (let i = 0; i < parsedDates.length; i++) {
-    if (Math.abs(parsedDates[i].date.getFullYear() - mostCommonYear) > 1) {
+    const yearDiff = Math.abs(parsedDates[i].date.getFullYear() - mostCommonYear)
+    if (yearDiff > 1) {
       outliers.push(parsedDates[i].idx)
     }
   }
@@ -510,7 +517,6 @@ function detectEssentialColumns(columns: string[], researchQuestion: string): st
     }
   }
 
-  // Always include date columns if found
   const dateCol = findDateColumn(columns)
   if (dateCol && !essential.includes(dateCol)) essential.push(dateCol)
 
@@ -539,8 +545,8 @@ function detectCategoricalColumns(rows: RawRow[], columns: string[]): string[] {
 function detectValueVariations(uniqueValues: string[], column: string): string[] {
   const variations: string[] = []
   const commonMappings: Record<string, string[]> = {
-    'sex': ['male', 'm', 'm/', 'm/', 'man', 'lalaki', 'laki', '1'],
-    'female': ['female', 'f', 'f/', 'f/', 'woman', 'babae', '2'],
+    'sex': ['male', 'm', 'man', 'lalaki', 'laki', '1'],
+    'female': ['female', 'f', 'woman', 'babae', '2'],
     'died': ['died', 'dead', 'death', 'expired', 'deceased', 'namatay', 'd'],
     'recovered': ['recovered', 'alive', 'discharged', 'gumaling', 'nabuhay', 'r'],
     'confirmed': ['confirmed', 'positive', 'kumpirmado', 'pos', 'c'],
