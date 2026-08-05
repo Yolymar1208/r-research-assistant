@@ -94,11 +94,15 @@ export function generateQualityReport(
 
   // 2. Check for missing essential data
   const essentialColumns = detectEssentialColumns(columns, researchQuestion)
-  for (const col of essentialColumns) {
-    const missingRows = rows
-      .map((row, idx) => ({ idx, val: row[col] }))
-      .filter(r => r.val === null || r.val === undefined || r.val === '')
-      .map(r => r.idx)
+  for (let i = 0; i < essentialColumns.length; i++) {
+    const col = essentialColumns[i]
+    const missingRows: number[] = []
+    for (let j = 0; j < rows.length; j++) {
+      const val = rows[j][col]
+      if (val === null || val === undefined || val === '') {
+        missingRows.push(j)
+      }
+    }
     if (missingRows.length > 0) {
       issues.push({
         id: `issue_${issueId++}`,
@@ -126,11 +130,12 @@ export function generateQualityReport(
 
   // 3. Check for inconsistent values (categorical columns)
   const categoricalColumns = detectCategoricalColumns(rows, columns)
-  for (const col of categoricalColumns) {
+  for (let i = 0; i < categoricalColumns.length; i++) {
+    const col = categoricalColumns[i]
     const valueMap = new Map<string, number>()
     const uniqueValues: string[] = []
-    for (const row of rows) {
-      const val = String(row[col] ?? '').trim()
+    for (let j = 0; j < rows.length; j++) {
+      const val = String(rows[j][col] ?? '').trim()
       if (val) {
         if (!valueMap.has(val)) uniqueValues.push(val)
         valueMap.set(val, (valueMap.get(val) || 0) + 1)
@@ -164,25 +169,41 @@ export function generateQualityReport(
 
   // 4. Check for unlikely values (numeric columns)
   const numericColumns = detectNumericColumns(rows, columns)
-  for (const col of numericColumns) {
-    const values = rows.map(r => Number(r[col])).filter(v => !isNaN(v))
+  for (let i = 0; i < numericColumns.length; i++) {
+    const col = numericColumns[i]
+    const values: number[] = []
+    for (let j = 0; j < rows.length; j++) {
+      const num = Number(rows[j][col])
+      if (!isNaN(num)) values.push(num)
+    }
     if (values.length === 0) continue
-    const mean = values.reduce((a, b) => a + b, 0) / values.length
-    const std = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length)
-    const outliers = values
-      .map((v, idx) => ({ idx, val: v }))
-      .filter(({ val }) => Math.abs(val - mean) > 3 * std)
-      .filter(({ val }) => val > 0) // Only positive outliers
-    if (outliers.length > 0) {
-      const outlierRows = outliers.map(o => o.idx)
+    let sum = 0
+    for (let j = 0; j < values.length; j++) {
+      sum += values[j]
+    }
+    const mean = sum / values.length
+    let squaredDiffSum = 0
+    for (let j = 0; j < values.length; j++) {
+      squaredDiffSum += (values[j] - mean) ** 2
+    }
+    const std = Math.sqrt(squaredDiffSum / values.length)
+    const outlierRows: number[] = []
+    const outlierValues: string[] = []
+    for (let j = 0; j < values.length; j++) {
+      if (Math.abs(values[j] - mean) > 3 * std && values[j] > 0) {
+        outlierRows.push(j)
+        outlierValues.push(String(values[j]))
+      }
+    }
+    if (outlierRows.length > 0) {
       issues.push({
         id: `issue_${issueId++}`,
         type: 'unlikely_value',
         severity: 'warning',
         title: `Unlikely values in "${col}"`,
-        description: `${outliers.length} value${outliers.length > 1 ? 's' : ''} in "${col}" are statistical outliers (more than 3 standard deviations from the mean).`,
+        description: `${outlierRows.length} value${outlierRows.length > 1 ? 's' : ''} in "${col}" are statistical outliers (more than 3 standard deviations from the mean).`,
         whyItMatters: 'Extreme outliers can skew statistical results and may indicate data entry errors.',
-        suggestedFix: `Review and correct these ${outliers.length} value${outliers.length > 1 ? 's' : ''}`,
+        suggestedFix: `Review and correct these ${outlierRows.length} value${outlierRows.length > 1 ? 's' : ''}`,
         fixAction: {
           type: 'remove_rows',
           payload: {
@@ -191,7 +212,7 @@ export function generateQualityReport(
         },
         affectedRows: outlierRows,
         affectedColumns: [col],
-        affectedValues: outliers.map(o => String(o.val)),
+        affectedValues: outlierValues,
         autoFixable: false, // User should review manually
       })
     }
@@ -200,7 +221,12 @@ export function generateQualityReport(
   // 5. Check for duplicate records
   const duplicateGroups = findDuplicateRecords(rows, columns)
   if (duplicateGroups.length > 0) {
-    const duplicateRows = duplicateGroups.flat()
+    const duplicateRows: number[] = []
+    for (let i = 0; i < duplicateGroups.length; i++) {
+      for (let j = 0; j < duplicateGroups[i].length; j++) {
+        duplicateRows.push(duplicateGroups[i][j])
+      }
+    }
     issues.push({
       id: `issue_${issueId++}`,
       type: 'duplicate_record',
@@ -268,38 +294,66 @@ export function generateQualityReport(
   // We'll let the existing phiDetector handle this in the UI
 
   // Build summary
-  const critical = issues.filter(i => i.severity === 'critical').length
-  const warning = issues.filter(i => i.severity === 'warning').length
-  const info = issues.filter(i => i.severity === 'info').length
-  const autoFixable = issues.filter(i => i.autoFixable).length
+  let critical = 0
+  let warning = 0
+  let info = 0
+  let autoFixable = 0
+  for (let i = 0; i < issues.length; i++) {
+    const issue = issues[i]
+    if (issue.severity === 'critical') critical++
+    else if (issue.severity === 'warning') warning++
+    else if (issue.severity === 'info') info++
+    if (issue.autoFixable) autoFixable++
+  }
 
   const affectedRows = new Set<number>()
   const affectedColumns = new Set<string>()
-  for (const issue of issues) {
-    if (issue.affectedRows) issue.affectedRows.forEach(r => affectedRows.add(r))
-    if (issue.affectedColumns) issue.affectedColumns.forEach(c => affectedColumns.add(c))
+  for (let i = 0; i < issues.length; i++) {
+    const issue = issues[i]
+    if (issue.affectedRows) {
+      for (let j = 0; j < issue.affectedRows.length; j++) {
+        affectedRows.add(issue.affectedRows[j])
+      }
+    }
+    if (issue.affectedColumns) {
+      for (let j = 0; j < issue.affectedColumns.length; j++) {
+        affectedColumns.add(issue.affectedColumns[j])
+      }
+    }
   }
 
   // Date range stats
   let dateRange: { min: string; max: string } | null = null
   if (dateColumn) {
-    const dates = rows
-      .map(r => r[dateColumn])
-      .filter(d => d)
-      .map(d => new Date(d as string))
-      .filter(d => !isNaN(d.getTime()))
+    const dates: Date[] = []
+    for (let i = 0; i < rows.length; i++) {
+      const val = rows[i][dateColumn]
+      if (val) {
+        const d = new Date(val as string)
+        if (!isNaN(d.getTime())) dates.push(d)
+      }
+    }
     if (dates.length > 0) {
+      let minTime = dates[0].getTime()
+      let maxTime = dates[0].getTime()
+      for (let i = 1; i < dates.length; i++) {
+        const time = dates[i].getTime()
+        if (time < minTime) minTime = time
+        if (time > maxTime) maxTime = time
+      }
       dateRange = {
-        min: new Date(Math.min(...dates.map(d => d.getTime()))).toISOString().slice(0, 10),
-        max: new Date(Math.max(...dates.map(d => d.getTime()))).toISOString().slice(0, 10),
+        min: new Date(minTime).toISOString().slice(0, 10),
+        max: new Date(maxTime).toISOString().slice(0, 10),
       }
     }
   }
 
   // Missing values count
   let missingValues = 0
-  for (const row of rows) {
-    for (const col of columns) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    for (let j = 0; j < columns.length; j++) {
+      const col = columns[j]
       if (row[col] === null || row[col] === undefined || row[col] === '') missingValues++
     }
   }
@@ -319,7 +373,6 @@ export function generateQualityReport(
       rowCount: rows.length,
       columnCount: columns.length,
       missingValues,
-      // FIXED: Check that dateColumn is not null before passing to datesCount
       uniqueDates: dateRange && dateColumn ? datesCount(rows, dateColumn) : 0,
       dateRange,
     },
@@ -333,31 +386,40 @@ function findDateColumn(columns: string[]): string | null {
     /date/i, /onset/i, /admit/i, /discharge/i, /report/i, /consult/i,
     /collected/i, /result/i, /birth/i, /dob/i, /died/i, /expired/i
   ]
-  for (const col of columns) {
-    for (const pattern of datePatterns) {
-      if (pattern.test(col)) return col
+  for (let i = 0; i < columns.length; i++) {
+    const col = columns[i]
+    for (let j = 0; j < datePatterns.length; j++) {
+      if (datePatterns[j].test(col)) return col
     }
   }
   return null
 }
 
 function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
-  const dates = rows.map((row, idx) => ({ idx, date: row[dateColumn] }))
-  const parsedDates = dates
-    .map(d => ({ idx: d.idx, date: d.date ? new Date(d.date as string) : null }))
-    .filter(d => d.date && !isNaN(d.date.getTime()))
+  const parsedDates: { idx: number; date: Date }[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const val = rows[i][dateColumn]
+    if (val) {
+      const d = new Date(val as string)
+      if (!isNaN(d.getTime())) {
+        parsedDates.push({ idx: i, date: d })
+      }
+    }
+  }
 
   if (parsedDates.length < 2) return []
 
   // Find the most common year
   const yearCounts = new Map<number, number>()
-  for (const d of parsedDates) {
-    const year = d.date!.getFullYear()
+  for (let i = 0; i < parsedDates.length; i++) {
+    const year = parsedDates[i].date.getFullYear()
     yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
   }
   let mostCommonYear = 0
   let maxCount = 0
-  for (const [year, count] of yearCounts) {
+  const entries = Array.from(yearCounts.entries())
+  for (let i = 0; i < entries.length; i++) {
+    const [year, count] = entries[i]
     if (count > maxCount) {
       maxCount = count
       mostCommonYear = year
@@ -366,9 +428,9 @@ function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
 
   // Find outliers (dates more than 1 year from the most common year)
   const outliers: number[] = []
-  for (const d of parsedDates) {
-    if (Math.abs(d.date!.getFullYear() - mostCommonYear) > 1) {
-      outliers.push(d.idx)
+  for (let i = 0; i < parsedDates.length; i++) {
+    if (Math.abs(parsedDates[i].date.getFullYear() - mostCommonYear) > 1) {
+      outliers.push(parsedDates[i].idx)
     }
   }
 
@@ -377,8 +439,8 @@ function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
 
 function getMostCommonYear(rows: RawRow[], dateColumn: string): number {
   const years: number[] = []
-  for (const row of rows) {
-    const val = row[dateColumn]
+  for (let i = 0; i < rows.length; i++) {
+    const val = rows[i][dateColumn]
     if (val) {
       const d = new Date(val as string)
       if (!isNaN(d.getTime())) years.push(d.getFullYear())
@@ -386,12 +448,15 @@ function getMostCommonYear(rows: RawRow[], dateColumn: string): number {
   }
   if (years.length === 0) return new Date().getFullYear()
   const yearCounts = new Map<number, number>()
-  for (const year of years) {
+  for (let i = 0; i < years.length; i++) {
+    const year = years[i]
     yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
   }
   let mostCommonYear = 0
   let maxCount = 0
-  for (const [year, count] of yearCounts) {
+  const entries = Array.from(yearCounts.entries())
+  for (let i = 0; i < entries.length; i++) {
+    const [year, count] = entries[i]
     if (count > maxCount) {
       maxCount = count
       mostCommonYear = year
@@ -402,8 +467,8 @@ function getMostCommonYear(rows: RawRow[], dateColumn: string): number {
 
 function datesCount(rows: RawRow[], dateColumn: string): number {
   const dates = new Set<string>()
-  for (const row of rows) {
-    const val = row[dateColumn]
+  for (let i = 0; i < rows.length; i++) {
+    const val = rows[i][dateColumn]
     if (val) {
       const d = new Date(val as string)
       if (!isNaN(d.getTime())) dates.add(d.toISOString().slice(0, 10))
@@ -413,11 +478,9 @@ function datesCount(rows: RawRow[], dateColumn: string): number {
 }
 
 function detectEssentialColumns(columns: string[], researchQuestion: string): string[] {
-  // If research question is provided, extract likely essential columns
   const essential: string[] = []
   const rq = researchQuestion.toLowerCase()
 
-  // Based on typical epidemiological research questions
   const essentialMappings: Record<string, string[]> = {
     'risk factor': ['age', 'sex', 'gender', 'outcome', 'exposure'],
     'severity': ['age', 'sex', 'outcome', 'symptom', 'lab_result', 'comorbidity'],
@@ -428,10 +491,20 @@ function detectEssentialColumns(columns: string[], researchQuestion: string): st
     'response': ['date', 'admit', 'discharge', 'management', 'outcome'],
   }
 
-  for (const [key, cols] of Object.entries(essentialMappings)) {
+  const keys = Object.keys(essentialMappings)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const cols = essentialMappings[key]
     if (rq.includes(key)) {
-      for (const col of cols) {
-        const matched = columns.find(c => c.toLowerCase().includes(col))
+      for (let j = 0; j < cols.length; j++) {
+        const col = cols[j]
+        let matched = ''
+        for (let k = 0; k < columns.length; k++) {
+          if (columns[k].toLowerCase().includes(col)) {
+            matched = columns[k]
+            break
+          }
+        }
         if (matched && !essential.includes(matched)) essential.push(matched)
       }
     }
@@ -441,19 +514,21 @@ function detectEssentialColumns(columns: string[], researchQuestion: string): st
   const dateCol = findDateColumn(columns)
   if (dateCol && !essential.includes(dateCol)) essential.push(dateCol)
 
-  // If no essential columns found, include all columns
   if (essential.length === 0) return columns
-
   return essential
 }
 
 function detectCategoricalColumns(rows: RawRow[], columns: string[]): string[] {
   const categorical: string[] = []
-  for (const col of columns) {
-    const values = rows.map(r => String(r[col] ?? '').trim()).filter(Boolean)
+  for (let i = 0; i < columns.length; i++) {
+    const col = columns[i]
+    const values: string[] = []
+    for (let j = 0; j < rows.length; j++) {
+      const val = String(rows[j][col] ?? '').trim()
+      if (val) values.push(val)
+    }
     if (values.length === 0) continue
     const unique = new Set(values)
-    // If fewer than 20% unique values, it's likely categorical
     if (unique.size / values.length < 0.2) {
       categorical.push(col)
     }
@@ -473,13 +548,24 @@ function detectValueVariations(uniqueValues: string[], column: string): string[]
     'suspect': ['suspect', 'suspected', 'pinaghihinalaang', 's'],
   }
 
-  // Check for variations of common categories
-  for (const [standard, variants] of Object.entries(commonMappings)) {
-    const found = uniqueValues.filter(v => 
-      variants.some(varv => varv.toLowerCase() === v.toLowerCase())
-    )
+  const keys = Object.keys(commonMappings)
+  for (let i = 0; i < keys.length; i++) {
+    const standard = keys[i]
+    const variants = commonMappings[standard]
+    const found: string[] = []
+    for (let j = 0; j < uniqueValues.length; j++) {
+      const v = uniqueValues[j]
+      for (let k = 0; k < variants.length; k++) {
+        if (variants[k].toLowerCase() === v.toLowerCase()) {
+          found.push(v)
+          break
+        }
+      }
+    }
     if (found.length > 1) {
-      variations.push(...found)
+      for (let j = 0; j < found.length; j++) {
+        variations.push(found[j])
+      }
     }
   }
 
@@ -488,30 +574,31 @@ function detectValueVariations(uniqueValues: string[], column: string): string[]
 
 function createStandardizationMap(variations: string[], column: string): Record<string, string> {
   const map: Record<string, string> = {}
-  const commonMappings: Record<string, string[]> = {
-    'sex': ['male', 'm', 'man', 'lalaki', 'laki', '1'],
-    'female': ['female', 'f', 'woman', 'babae', '2'],
-    'died': ['died', 'dead', 'death', 'expired', 'deceased', 'namatay', 'd'],
-    'recovered': ['recovered', 'alive', 'discharged', 'gumaling', 'nabuhay', 'r'],
-    'confirmed': ['confirmed', 'positive', 'kumpirmado', 'pos', 'c'],
-    'probable': ['probable', 'malamang', 'p'],
-    'suspect': ['suspect', 'suspected', 'pinaghihinalaang', 's'],
-  }
+  const columnLower = column.toLowerCase()
 
-  let columnLower = column.toLowerCase()
   if (columnLower.includes('sex') || columnLower.includes('gender')) {
-    for (const v of variations) {
+    for (let i = 0; i < variations.length; i++) {
+      const v = variations[i]
       const lower = v.toLowerCase()
-      if (['male', 'm', 'man', 'lalaki', 'laki', '1'].includes(lower)) map[v] = 'Male'
-      else if (['female', 'f', 'woman', 'babae', '2'].includes(lower)) map[v] = 'Female'
-      else map[v] = 'Unknown'
+      if (['male', 'm', 'man', 'lalaki', 'laki', '1'].includes(lower)) {
+        map[v] = 'Male'
+      } else if (['female', 'f', 'woman', 'babae', '2'].includes(lower)) {
+        map[v] = 'Female'
+      } else {
+        map[v] = 'Unknown'
+      }
     }
   } else if (columnLower.includes('outcome') || columnLower.includes('status')) {
-    for (const v of variations) {
+    for (let i = 0; i < variations.length; i++) {
+      const v = variations[i]
       const lower = v.toLowerCase()
-      if (['died', 'dead', 'death', 'expired', 'deceased', 'namatay', 'd'].includes(lower)) map[v] = 'Died'
-      else if (['recovered', 'alive', 'discharged', 'gumaling', 'nabuhay', 'r'].includes(lower)) map[v] = 'Recovered'
-      else map[v] = 'Unknown'
+      if (['died', 'dead', 'death', 'expired', 'deceased', 'namatay', 'd'].includes(lower)) {
+        map[v] = 'Died'
+      } else if (['recovered', 'alive', 'discharged', 'gumaling', 'nabuhay', 'r'].includes(lower)) {
+        map[v] = 'Recovered'
+      } else {
+        map[v] = 'Unknown'
+      }
     }
   }
 
@@ -520,9 +607,14 @@ function createStandardizationMap(variations: string[], column: string): Record<
 
 function detectNumericColumns(rows: RawRow[], columns: string[]): string[] {
   const numeric: string[] = []
-  for (const col of columns) {
-    const values = rows.map(r => Number(r[col])).filter(v => !isNaN(v))
-    if (values.length > 0 && values.length / rows.length > 0.3) {
+  for (let i = 0; i < columns.length; i++) {
+    const col = columns[i]
+    let count = 0
+    for (let j = 0; j < rows.length; j++) {
+      const num = Number(rows[j][col])
+      if (!isNaN(num)) count++
+    }
+    if (count > 0 && count / rows.length > 0.3) {
       numeric.push(col)
     }
   }
@@ -533,29 +625,35 @@ function findDuplicateRecords(rows: RawRow[], columns: string[]): number[][] {
   const groups: number[][] = []
   const seen = new Map<string, number>()
 
-  // Only check rows that have values in all columns (or most columns)
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
-    // Create a fingerprint of the row (exclude null/empty values)
-    const fingerprint = columns
-      .filter(c => row[c] !== null && row[c] !== undefined && row[c] !== '')
-      .map(c => String(row[c]).trim())
-      .join('|')
-    
+    const fingerprintParts: string[] = []
+    for (let j = 0; j < columns.length; j++) {
+      const col = columns[j]
+      if (row[col] !== null && row[col] !== undefined && row[col] !== '') {
+        fingerprintParts.push(String(row[col]).trim())
+      }
+    }
+    const fingerprint = fingerprintParts.join('|')
     if (!fingerprint) continue
 
     if (seen.has(fingerprint)) {
-      const group = seen.get(fingerprint)!
-      if (!groups[group]) groups[group] = [seen.get(fingerprint)!]
-      groups[group].push(i)
+      const groupIndex = seen.get(fingerprint)!
+      if (!groups[groupIndex]) groups[groupIndex] = [seen.get(fingerprint)!]
+      groups[groupIndex].push(i)
     } else {
       seen.set(fingerprint, groups.length)
       groups.push([i])
     }
   }
 
-  // Return only groups with more than one record
-  return groups.filter(g => g.length > 1)
+  const result: number[][] = []
+  for (let i = 0; i < groups.length; i++) {
+    if (groups[i].length > 1) {
+      result.push(groups[i])
+    }
+  }
+  return result
 }
 
 function findIrrelevantColumns(columns: string[], researchQuestion: string): string[] {
@@ -564,36 +662,39 @@ function findIrrelevantColumns(columns: string[], researchQuestion: string): str
   const rq = researchQuestion.toLowerCase()
   const relevantTerms = new Set<string>()
 
-  // Extract key terms from research question
   const words = rq.split(/\s+/)
-  for (const word of words) {
-    if (word.length > 3) relevantTerms.add(word)
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].length > 3) relevantTerms.add(words[i])
   }
 
-  // Add common epidemiological terms
   const epiTerms = ['age', 'sex', 'gender', 'date', 'onset', 'outcome', 'case', 'exposure', 'risk', 'factor', 'symptom', 'lab', 'result', 'vaccine', 'treatment', 'management', 'address', 'barangay', 'municipality', 'province', 'region', 'outbreak', 'cluster', 'surveillance', 'report', 'admit', 'discharge']
-  for (const term of epiTerms) relevantTerms.add(term)
+  for (let i = 0; i < epiTerms.length; i++) {
+    relevantTerms.add(epiTerms[i])
+  }
 
-  // Check which columns are relevant
   const irrelevant: string[] = []
-  for (const col of columns) {
+  for (let i = 0; i < columns.length; i++) {
+    const col = columns[i]
     const colLower = col.toLowerCase()
     let isRelevant = false
-    for (const term of relevantTerms) {
-      if (colLower.includes(term)) {
+
+    const termArray = Array.from(relevantTerms)
+    for (let j = 0; j < termArray.length; j++) {
+      if (colLower.includes(termArray[j])) {
         isRelevant = true
         break
       }
     }
-    // Also check if the column contains the research question terms
+
     if (!isRelevant) {
-      for (const word of words) {
-        if (word.length > 3 && colLower.includes(word)) {
+      for (let j = 0; j < words.length; j++) {
+        if (words[j].length > 3 && colLower.includes(words[j])) {
           isRelevant = true
           break
         }
       }
     }
+
     if (!isRelevant) {
       irrelevant.push(col)
     }
@@ -606,17 +707,21 @@ function findTestRows(rows: RawRow[], columns: string[]): number[] {
   const testPatterns = /test|dummy|sample|xxx|asdf|123|test\s*user|demo|trial|example|testing|placeholder/i
   const testRows: number[] = []
 
-  // Check first few columns for test patterns
   const checkColumns = columns.slice(0, Math.min(5, columns.length))
-  
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
-    for (const col of checkColumns) {
+    let isTest = false
+    for (let j = 0; j < checkColumns.length; j++) {
+      const col = checkColumns[j]
       const val = String(row[col] ?? '').trim()
       if (testPatterns.test(val)) {
-        testRows.push(i)
+        isTest = true
         break
       }
+    }
+    if (isTest) {
+      testRows.push(i)
     }
   }
 
