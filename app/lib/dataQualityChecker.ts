@@ -319,7 +319,8 @@ export function generateQualityReport(
       rowCount: rows.length,
       columnCount: columns.length,
       missingValues,
-      uniqueDates: dateRange ? datesCount(rows, dateColumn) : 0,
+      // FIXED: Check that dateColumn is not null before passing to datesCount
+      uniqueDates: dateRange && dateColumn ? datesCount(rows, dateColumn) : 0,
       dateRange,
     },
   }
