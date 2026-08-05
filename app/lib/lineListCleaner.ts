@@ -24,6 +24,24 @@ export interface CleaningStep {
 
 export type RawRow = Record<string, unknown>
 
+// ─── AI suggestion type ────────────────────────────────────────────────────────
+
+export interface AISuggestion {
+  type: 'standardize_values' | 'rename_column' | 'fix_dates' | 'merge_multichoice'
+  column: string
+  newName?: string
+  description: string
+  detail: string
+  payload: Record<string, unknown>
+}
+
+// ─── Optional cleaning context ──────────────────────────────────────────────
+
+export interface CleaningContext {
+  researchQuestion?: string
+  sourceType?: DataSource
+}
+
 // ─── Value standardization helpers ────────────────────────────────────────────
 
 const SEX_MALE = /^(m|male|lalaki|laki|1)$/i
@@ -107,7 +125,8 @@ export function generateCleaningSteps(
   removeColumns: string[],
   birthdayColumn: string | null,
   source: DataSource,
-  aiSuggestions: AISuggestion[]
+  aiSuggestions: AISuggestion[],
+  context?: CleaningContext  // NEW: optional research question context
 ): CleaningStep[] {
   const steps: CleaningStep[] = []
 
@@ -222,6 +241,13 @@ export function generateCleaningSteps(
     }
   }
 
+  // Optional: Log research question context if provided (non-actionable info)
+  if (context?.researchQuestion) {
+    // This is just for traceability — no step is added since the research
+    // question already influenced the AI suggestions above. But if you want
+    // to display it somewhere, you could add a metadata step here.
+  }
+
   return steps
 }
 
@@ -326,15 +352,4 @@ export function applyCleaningSteps(
   }
 
   return result
-}
-
-// ─── AI suggestion type ────────────────────────────────────────────────────────
-
-export interface AISuggestion {
-  type: 'standardize_values' | 'rename_column' | 'fix_dates' | 'merge_multichoice'
-  column: string
-  newName?: string
-  description: string
-  detail: string
-  payload: Record<string, unknown>
 }
