@@ -22,6 +22,7 @@ interface SuggestCleaningRequest {
   source: DataSource
   rowCount: number
   columnProfiles: ColumnProfile[]
+  researchQuestion?: string  // NEW: Optional research question for contextual cleaning
 }
 
 const CLIENT = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -69,15 +70,30 @@ Rules:
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body: SuggestCleaningRequest = await request.json()
-    const { source, rowCount, columnProfiles } = body
+    const { source, rowCount, columnProfiles, researchQuestion } = body
 
     if (!columnProfiles?.length) {
       return NextResponse.json({ success: false, error: 'No column profiles provided.' }, { status: 400 })
     }
 
     // Build the dynamic per-request portion (column profiles only — no row data)
-    const dynamicPrompt = `SOURCE: ${source}
-ROW COUNT: ${rowCount}
+    let dynamicPrompt = `SOURCE: ${source}
+ROW COUNT: ${rowCount}`
+
+    // NEW: Include research question if provided
+    if (researchQuestion && researchQuestion.trim()) {
+      dynamicPrompt += `
+
+RESEARCH QUESTION: ${researchQuestion.trim()}
+
+The researcher wants to answer this question. Focus your cleaning suggestions on preparing the data specifically for this analysis. Identify which columns are relevant to this question and suggest cleaning steps that will make the data suitable for the analysis needed.`
+    } else {
+      dynamicPrompt += `
+
+RESEARCH QUESTION: Not provided. Focus on general data quality improvements.`
+    }
+
+    dynamicPrompt += `
 
 COLUMN PROFILES (name, type, top unique values, missing count):
 ${columnProfiles.map(col =>
