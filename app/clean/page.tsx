@@ -8,14 +8,18 @@ import { classifyColumns } from '@/app/lib/phiDetector'
 import {
   generateCleaningSteps,
   applyCleaningSteps,
+  deduplicateRows,
 } from '@/app/lib/lineListCleaner'
+import { generateQualityReport } from '@/app/lib/dataQualityChecker'
+import DataQualityReport from '@/app/components/DataQualityReport'
 import type { DataSource, SourceDetectionResult } from '@/app/lib/sourceDetector'
 import type { ColumnClassification } from '@/app/lib/phiDetector'
 import type { CleaningStep, RawRow, AISuggestion } from '@/app/lib/lineListCleaner'
+import type { QualityIssue } from '@/app/lib/dataQualityChecker'
 
-type Step = 1 | 2 | 3 | 4
+type Step = 1 | 2 | 3 | 4 | 5
 
-const STEP_LABELS = ['Upload', 'De-identify', 'Clean', 'Export']
+const STEP_LABELS = ['Upload', 'Quality Check', 'De-identify', 'Clean', 'Export']
 
 const glass: React.CSSProperties = {
   background: 'rgba(18,26,48,0.65)',
@@ -31,7 +35,7 @@ export default function CleanPage() {
   const [rows, setRows] = useState<RawRow[]>([])
   const [allColumns, setAllColumns] = useState<string[]>([])
 
-  // Step 1
+  // Step 1: Upload
   const [researchQuestion, setResearchQuestion] = useState('')
   const [isQuestionFocused, setIsQuestionFocused] = useState(false)
   const [detectedSource, setDetectedSource] = useState<SourceDetectionResult | null>(null)
@@ -39,23 +43,28 @@ export default function CleanPage() {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Step 2
+  // Step 2: Quality Report
+  const [qualityReport, setQualityReport] = useState<any>(null)
+  const [qualityIssues, setQualityIssues] = useState<QualityIssue[]>([])
+  const [isProcessingQuality, setIsProcessingQuality] = useState(false)
+
+  // Step 3: De-identify
   const [columnClassifications, setColumnClassifications] = useState<ColumnClassification[]>([])
   const [keepCols, setKeepCols] = useState<Set<string>>(new Set())
   const [removeCols, setRemoveCols] = useState<Set<string>>(new Set())
   const [deidentConfirmed, setDeidentConfirmed] = useState(false)
   const [birthdayColumn, setBirthdayColumn] = useState<string | null>(null)
 
-  // Step 3
+  // Step 4: Clean
   const [cleaningSteps, setCleaningSteps] = useState<CleaningStep[]>([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const [suggestionsError, setSuggestionsError] = useState('')
 
-  // Step 4
+  // Step 5: Export
   const [cleanedRows, setCleanedRows] = useState<RawRow[]>([])
   const [isApplying, setIsApplying] = useState(false)
 
-  // ─── File upload ──────────────────────────────────────────────────────────────
+  // ─── Step 1: File upload ──────────────────────────────────────────────────────
 
   function readFile(file: File) {
     const reader = new FileReader()
@@ -90,20 +99,127 @@ export default function CleanPage() {
     if (file) readFile(file)
   }
 
-  function proceedToDeidentify() {
+  // ─── Step 2: Quality Check ────────────────────────────────────────────────────
+
+  function proceedToQualityCheck() {
+    setIsProcessingQuality(true)
+
+    // Generate quality report
+    const report = generateQualityReport(
+      rows,
+      allColumns,
+      researchQuestion,
+      selectedSource
+    )
+
+    setQualityReport(report)
+    setQualityIssues(report.issues)
+    setIsProcessingQuality(false)
+    setStep(2)
+  }
+
+  function handleApplyQualityFix(issueId: string) {
+    const issue = qualityIssues.find(i => i.id === issueId)
+    if (!issue || !issue.autoFixable) return
+
+    // Apply the fix to the data
+    const fixAction = issue.fixAction
+    let newRows = [...rows]
+
+    if (fixAction.type === 'correct_date') {
+      const col = fixAction.payload.column as string
+      const targetYear = fixAction.payload.targetYear as number
+      const rowIndices = fixAction.payload.rowIndices as number[]
+      const indices = new Set(rowIndices)
+      newRows = newRows.map((row, idx) => {
+        if (indices.has(idx) && row[col]) {
+          // Correct the date
+          const corrected = correctDateOutlier(String(row[col]), targetYear)
+          return { ...row, [col]: corrected }
+        }
+        return row
+      })
+    } else if (fixAction.type === 'remove_rows') {
+      const rowIndices = fixAction.payload.rowIndices as number[]
+      const indicesToRemove = new Set(rowIndices)
+      newRows = newRows.filter((_, idx) => !indicesToRemove.has(idx))
+    } else if (fixAction.type === 'standardize') {
+      const col = fixAction.payload.column as string
+      const mappings = fixAction.payload.mappings as Record<string, string>
+      newRows = newRows.map(row => {
+        const val = String(row[col] ?? '')
+        if (mappings[val] !== undefined) {
+          return { ...row, [col]: mappings[val] }
+        }
+        return row
+      })
+    } else if (fixAction.type === 'remove_columns') {
+      const cols = fixAction.payload.columns as string[]
+      newRows = newRows.map(row => {
+        const newRow = { ...row }
+        cols.forEach(c => delete newRow[c])
+        return newRow
+      })
+      setAllColumns(allColumns.filter(c => !cols.includes(c)))
+    } else if (fixAction.type === 'deduplicate') {
+      const rowIndices = fixAction.payload.rowIndices as number[]
+      newRows = deduplicateRows(newRows, rowIndices)
+    }
+
+    setRows(newRows)
+
+    // Mark issue as applied in the UI
+    setQualityIssues(prev => prev.map(i =>
+      i.id === issueId ? { ...i, autoFixable: false } : i
+    ))
+  }
+
+  function handleApplyAllQualityFixes() {
+    const pending = qualityIssues.filter(i => i.autoFixable)
+    for (const issue of pending) {
+      handleApplyQualityFix(issue.id)
+    }
+  }
+
+  function handleSkipQualityIssue(issueId: string) {
+    setQualityIssues(prev => prev.map(i =>
+      i.id === issueId ? { ...i, autoFixable: false } : i
+    ))
+  }
+
+  function handleProceedFromQualityCheck() {
+    // Check if all critical issues are resolved
+    const unresolvedCritical = qualityIssues.filter(
+      i => i.severity === 'critical' && i.autoFixable
+    )
+    if (unresolvedCritical.length > 0) {
+      alert('Please resolve all critical issues before proceeding.')
+      return
+    }
+
+    // Proceed to de-identification
     const classifications = classifyColumns(allColumns)
     setColumnClassifications(classifications)
     const keep = new Set(classifications.filter(c => c.classification === 'keep').map(c => c.name))
     const remove = new Set(classifications.filter(c => c.classification !== 'keep').map(c => c.name))
     setKeepCols(keep)
     setRemoveCols(remove)
-    // Detect birthday column for age conversion offer
     const bday = classifications.find(c => c.specialAction === 'convert_age')
     setBirthdayColumn(bday?.name ?? null)
-    setStep(2)
+    setStep(3)
   }
 
-  // ─── Step 2 column drag ────────────────────────────────────────────────────────
+  // Helper function for date correction
+  function correctDateOutlier(date: string, targetYear: number): string {
+    const d = new Date(date)
+    if (!isNaN(d.getTime())) {
+      d.setFullYear(targetYear)
+      return d.toISOString().slice(0, 10)
+    }
+    return date
+  }
+
+  // ─── Step 3: De-identify ──────────────────────────────────────────────────────
 
   function moveToKeep(colName: string) {
     setRemoveCols(prev => { const s = new Set(Array.from(prev)); s.delete(colName); return s })
@@ -115,13 +231,13 @@ export default function CleanPage() {
     setRemoveCols(prev => new Set([...Array.from(prev), colName]))
   }
 
+  // ─── Step 4: Clean ────────────────────────────────────────────────────────────
+
   async function proceedToCleaning() {
-    setStep(3)
+    setStep(4)
     setIsLoadingSuggestions(true)
     setSuggestionsError('')
 
-    // Build column profiles — column names + value distributions ONLY
-    // Row-level data is never sent to the API
     const keepColsArr = Array.from(keepCols)
     const columnProfiles = keepColsArr.map(col => {
       const vals = rows.map(r => String(r[col] ?? '')).filter(Boolean)
@@ -162,7 +278,8 @@ export default function CleanPage() {
       Array.from(removeCols),
       birthdayColumn,
       selectedSource,
-      aiSuggestions
+      aiSuggestions,
+      { researchQuestion }
     )
     setCleaningSteps(steps)
   }
@@ -175,20 +292,19 @@ export default function CleanPage() {
     setCleaningSteps(prev => prev.map(s => s.status === 'pending' ? { ...s, status: 'accepted' } : s))
   }
 
+  // ─── Step 5: Export ───────────────────────────────────────────────────────────
+
   async function applyAndProceed() {
     setIsApplying(true)
     const accepted = cleaningSteps.map(s =>
       s.status === 'pending' ? { ...s, status: 'accepted' as const } : s
     )
-    // Run in a microtask to allow UI to update
     await new Promise(resolve => setTimeout(resolve, 50))
     const cleaned = applyCleaningSteps(rows, accepted)
     setCleanedRows(cleaned)
     setIsApplying(false)
-    setStep(4)
+    setStep(5)
   }
-
-  // ─── Step 4 export ─────────────────────────────────────────────────────────────
 
   function downloadCleanFile() {
     const ws = XLSX.utils.json_to_sheet(cleanedRows)
@@ -198,14 +314,12 @@ export default function CleanPage() {
   }
 
   function analyzeInApp() {
-    // Convert cleaned rows to a Blob and redirect to main app with the file
     const ws = XLSX.utils.json_to_sheet(cleanedRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Line List')
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
     const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = URL.createObjectURL(blob)
-    // Store in sessionStorage for the main page to pick up
     sessionStorage.setItem('cleanedFileBlob', url)
     sessionStorage.setItem('cleanedFileName', `clean_${fileName || 'linelist'}.xlsx`)
     window.location.href = '/?from_cleaner=1'
@@ -244,14 +358,14 @@ export default function CleanPage() {
             const isDone = step > num
             const isCurrent = step === num
             return (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < 3 ? 1 : 'none' }}>
+              <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < 4 ? 1 : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flexShrink: 0, background: isDone ? '#4ade80' : isCurrent ? 'linear-gradient(135deg,#7c5cff,#2e75b6)' : 'rgba(255,255,255,0.06)', color: isDone || isCurrent ? '#fff' : '#6b7aa3', border: isDone ? 'none' : isCurrent ? 'none' : '1px solid rgba(255,255,255,0.12)' }}>
                     {isDone ? '✓' : num}
                   </div>
                   <span style={{ fontSize: '12px', fontWeight: isCurrent ? 700 : 400, color: isDone ? '#4ade80' : isCurrent ? '#c4b5fd' : '#6b7aa3', whiteSpace: 'nowrap' }}>{label}</span>
                 </div>
-                {i < 3 && <div style={{ flex: 1, height: '1px', background: isDone ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)', margin: '0 12px' }} />}
+                {i < 4 && <div style={{ flex: 1, height: '1px', background: isDone ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)', margin: '0 12px' }} />}
               </div>
             )
           })}
@@ -288,7 +402,7 @@ export default function CleanPage() {
                   )}
                 </div>
 
-                {/* NEW: Research Question Input */}
+                {/* Research Question Input */}
                 <div style={{ marginTop: '16px' }}>
                   <div style={{
                     borderRadius: '10px',
@@ -298,14 +412,14 @@ export default function CleanPage() {
                     padding: '12px 16px',
                   }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#aab4d4', marginBottom: '6px' }}>
-                      Research Question <span style={{ fontWeight: 400, color: '#6b7aa3' }}>(optional)</span>
+                      Research Question <span style={{ fontWeight: 400, color: '#6b7aa3' }}>(optional but recommended)</span>
                     </label>
                     <textarea
                       value={researchQuestion}
                       onChange={(e) => setResearchQuestion(e.target.value)}
                       onFocus={() => setIsQuestionFocused(true)}
                       onBlur={() => setIsQuestionFocused(false)}
-                      placeholder="e.g., What are the demographic and exposure risk factors associated with dengue fever among patients in Region III?"
+                      placeholder="e.g., What are the demographic and exposure risk factors associated with ILI among patients in Magsaysay?"
                       style={{
                         width: '100%',
                         background: 'transparent',
@@ -322,7 +436,7 @@ export default function CleanPage() {
                       rows={2}
                     />
                     <p style={{ fontSize: '11px', color: '#6b7aa3', margin: '4px 0 0' }}>
-                      Adding a research question helps AI suggest cleaning steps specific to your analysis needs.
+                      Adding a research question helps the quality checker focus on what matters for your analysis.
                     </p>
                   </div>
                 </div>
@@ -353,10 +467,11 @@ export default function CleanPage() {
 
                 {fileName && (
                   <button
-                    onClick={proceedToDeidentify}
-                    style={{ marginTop: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '14px', color: '#fff', background: 'linear-gradient(135deg, #7c5cff, #2e75b6)', boxShadow: '0 4px 16px rgba(124,92,255,0.3)' }}
+                    onClick={proceedToQualityCheck}
+                    disabled={isProcessingQuality}
+                    style={{ marginTop: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', cursor: isProcessingQuality ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', color: '#fff', background: 'linear-gradient(135deg, #7c5cff, #2e75b6)', boxShadow: '0 4px 16px rgba(124,92,255,0.3)', opacity: isProcessingQuality ? 0.7 : 1 }}
                   >
-                    Next: De-identify →
+                    {isProcessingQuality ? 'Checking quality...' : 'Check Data Quality →'}
                   </button>
                 )}
               </div>
@@ -364,14 +479,26 @@ export default function CleanPage() {
 
             <div style={{ ...glass, padding: '16px 20px' }}>
               <p style={{ fontSize: '12px', color: '#6b7aa3', margin: 0, lineHeight: 1.6 }}>
-                🔒 <strong style={{ color: '#aab4d4' }}>Privacy guarantee:</strong> Your raw data never leaves your device during the cleaning and de-identification process. Only column names and value counts are sent to AI for suggestions. The cleaned, de-identified file is what gets uploaded to JOANResearchOS.
+                🔒 <strong style={{ color: '#aab4d4' }}>Privacy guarantee:</strong> Your raw data never leaves your device during cleaning and de-identification. Only column names and value distributions are sent to AI for suggestions.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── STEP 2: De-identify ── */}
-        {step === 2 && (
+        {/* ── STEP 2: Quality Report ── */}
+        {step === 2 && qualityReport && (
+          <DataQualityReport
+            report={qualityReport}
+            onApplyFix={handleApplyQualityFix}
+            onApplyAll={handleApplyAllQualityFixes}
+            onSkipIssue={handleSkipQualityIssue}
+            onProceed={handleProceedFromQualityCheck}
+            isProcessing={isProcessingQuality}
+          />
+        )}
+
+        {/* ── STEP 3: De-identify ── */}
+        {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ ...glass, padding: '16px 20px', background: 'rgba(254,243,199,0.08)', border: '1px solid rgba(253,230,138,0.3)' }}>
               <p style={{ fontSize: '13px', color: '#fbbf24', margin: 0, fontWeight: 600 }}>
@@ -383,7 +510,6 @@ export default function CleanPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              {/* REMOVE column */}
               <div style={glass}>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(248,113,113,0.2)', background: 'rgba(248,113,113,0.06)' }}>
                   <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#fca5a5' }}>🔴 REMOVE ({removeCols.size})</p>
@@ -410,7 +536,6 @@ export default function CleanPage() {
                 </div>
               </div>
 
-              {/* KEEP column */}
               <div style={glass}>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(74,222,128,0.2)', background: 'rgba(74,222,128,0.04)' }}>
                   <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#86efac' }}>🟢 KEEP ({keepCols.size})</p>
@@ -428,7 +553,6 @@ export default function CleanPage() {
               </div>
             </div>
 
-            {/* Confirmation checkbox */}
             <div style={{ ...glass, padding: '16px 20px' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
                 <input
@@ -444,7 +568,7 @@ export default function CleanPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setStep(1)} style={{ padding: '11px 20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)', color: '#aab4d4', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+              <button onClick={() => setStep(2)} style={{ padding: '11px 20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)', color: '#aab4d4', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                 ← Back
               </button>
               <button
@@ -458,8 +582,8 @@ export default function CleanPage() {
           </div>
         )}
 
-        {/* ── STEP 3: Clean ── */}
-        {step === 3 && (
+        {/* ── STEP 4: Clean ── */}
+        {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={glass}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -515,7 +639,7 @@ export default function CleanPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setStep(2)} style={{ padding: '11px 20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)', color: '#aab4d4', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+              <button onClick={() => setStep(3)} style={{ padding: '11px 20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.03)', color: '#aab4d4', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                 ← Back
               </button>
               <button
@@ -529,8 +653,8 @@ export default function CleanPage() {
           </div>
         )}
 
-        {/* ── STEP 4: Preview & Export ── */}
-        {step === 4 && (
+        {/* ── STEP 5: Preview & Export ── */}
+        {step === 5 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ ...glass, padding: '16px 20px', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.3)' }}>
               <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#86efac' }}>
@@ -585,7 +709,7 @@ export default function CleanPage() {
               </button>
             </div>
 
-            <button onClick={() => { setStep(1); setFileName(''); setRows([]); setAllColumns([]); setDetectedSource(null); setCleanedRows([]) }}
+            <button onClick={() => { setStep(1); setFileName(''); setRows([]); setAllColumns([]); setDetectedSource(null); setCleanedRows([]); setQualityReport(null) }}
               style={{ padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: '#6b7aa3', cursor: 'pointer', fontSize: '13px' }}>
               Clean another file
             </button>
