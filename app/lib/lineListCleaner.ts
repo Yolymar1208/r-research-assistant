@@ -11,13 +11,18 @@ export type CleaningStepType =
   | 'rename_columns'
   | 'merge_multichoice'
   | 'convert_age'
+  | 'correct_date'          // NEW
+  | 'deduplicate'           // NEW
+  | 'fill_missing'          // NEW
+  | 'remove_rows'           // NEW
+  | 'convert_type'          // NEW
 
 export interface CleaningStep {
   id: string
   type: CleaningStepType
   title: string
   description: string
-  detail: string           // shown in the UI — specific values affected
+  detail: string
   status: 'pending' | 'accepted' | 'skipped' | 'applied'
   payload: Record<string, unknown>
 }
@@ -117,6 +122,23 @@ function computeAge(birthday: unknown): number | null {
   return age >= 0 && age < 150 ? age : null
 }
 
+// ─── NEW: Date correction helpers ─────────────────────────────────────────────
+
+export function correctDateOutlier(date: string, targetYear: number): string {
+  const d = parseDate(date)
+  if (!d) return date
+  const parsed = new Date(d)
+  parsed.setFullYear(targetYear)
+  return parsed.toISOString().slice(0, 10)
+}
+
+// ─── NEW: Deduplicate helpers ──────────────────────────────────────────────────
+
+export function deduplicateRows(rows: RawRow[], rowIndices: number[]): RawRow[] {
+  const indicesToRemove = new Set(rowIndices)
+  return rows.filter((_, idx) => !indicesToRemove.has(idx))
+}
+
 // ─── Step generation ───────────────────────────────────────────────────────────
 
 export function generateCleaningSteps(
@@ -126,7 +148,7 @@ export function generateCleaningSteps(
   birthdayColumn: string | null,
   source: DataSource,
   aiSuggestions: AISuggestion[],
-  context?: CleaningContext  // NEW: optional research question context
+  context?: CleaningContext
 ): CleaningStep[] {
   const steps: CleaningStep[] = []
 
@@ -244,8 +266,7 @@ export function generateCleaningSteps(
   // Optional: Log research question context if provided (non-actionable info)
   if (context?.researchQuestion) {
     // This is just for traceability — no step is added since the research
-    // question already influenced the AI suggestions above. But if you want
-    // to display it somewhere, you could add a metadata step here.
+    // question already influenced the AI suggestions above.
   }
 
   return steps
@@ -267,6 +288,12 @@ export function applyCleaningSteps(
     if (step.type === 'remove_columns') {
       const cols = step.payload.columns as string[]
       cols.forEach(c => columnsToRemove.add(c))
+    }
+
+    if (step.type === 'remove_rows') {
+      const rowIndices = step.payload.rowIndices as number[]
+      const indicesToRemove = new Set(rowIndices)
+      result = result.filter((_, idx) => !indicesToRemove.has(idx))
     }
 
     if (step.type === 'convert_age') {
@@ -303,6 +330,20 @@ export function applyCleaningSteps(
       })
     }
 
+    if (step.type === 'correct_date') {
+      const col = step.payload.column as string
+      const targetYear = step.payload.targetYear as number
+      const rowIndices = step.payload.rowIndices as number[]
+      const indices = new Set(rowIndices)
+      result = result.map((row, idx) => {
+        if (indices.has(idx) && row[col]) {
+          const corrected = correctDateOutlier(String(row[col]), targetYear)
+          return { ...row, [col]: corrected }
+        }
+        return row
+      })
+    }
+
     if (step.type === 'rename_columns') {
       const from = step.payload.from as string
       const to = step.payload.to as string
@@ -328,6 +369,39 @@ export function applyCleaningSteps(
       const col = step.payload.column as string
       const pattern = new RegExp(step.payload.pattern as string, 'i')
       result = result.filter(row => !pattern.test(String(row[col] ?? '')))
+    }
+
+    if (step.type === 'deduplicate') {
+      const rowIndices = step.payload.rowIndices as number[]
+      const indicesToRemove = new Set(rowIndices)
+      result = result.filter((_, idx) => !indicesToRemove.has(idx))
+    }
+
+    if (step.type === 'convert_type') {
+      const col = step.payload.column as string
+      const targetType = step.payload.targetType as string
+      result = result.map(row => {
+        const newRow = { ...row }
+        if (targetType === 'number') {
+          newRow[col] = Number(row[col])
+        } else if (targetType === 'string') {
+          newRow[col] = String(row[col] ?? '')
+        }
+        return newRow
+      })
+    }
+
+    if (step.type === 'fill_missing') {
+      const col = step.payload.column as string
+      const fillValue = step.payload.fillValue
+      const rowIndices = step.payload.rowIndices as number[]
+      const indices = new Set(rowIndices)
+      result = result.map((row, idx) => {
+        if (indices.has(idx) && (row[col] === null || row[col] === undefined || row[col] === '')) {
+          return { ...row, [col]: fillValue }
+        }
+        return row
+      })
     }
   }
 
