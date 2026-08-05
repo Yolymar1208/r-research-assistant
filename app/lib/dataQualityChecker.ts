@@ -64,26 +64,25 @@ export function generateQualityReport(
   const issues: QualityIssue[] = []
   let issueId = 0
 
-  // 1. Check for date outliers - IMPROVED
+  // 1. Check for date outliers - FIXED
   const dateColumn = findDateColumn(columns)
   if (dateColumn) {
     const dateOutliers = detectDateOutliers(rows, dateColumn)
     if (dateOutliers.length > 0) {
       const mostCommonYear = getMostCommonYear(rows, dateColumn)
-      // Build list of affected values for display
       const affectedValues: string[] = []
       for (let i = 0; i < dateOutliers.length; i++) {
         const idx = dateOutliers[i]
         const val = rows[idx][dateColumn]
         if (val) affectedValues.push(String(val))
       }
-      
+
       issues.push({
         id: `issue_${issueId++}`,
         type: 'date_outlier',
         severity: 'warning',
-        title: `Date outlier${dateOutliers.length > 1 ? 's' : ''} found in "${dateColumn}"`,
-        description: `${dateOutliers.length} date${dateOutliers.length > 1 ? 's' : ''} (${affectedValues.slice(0, 3).join(', ')}${affectedValues.length > 3 ? ` +${affectedValues.length - 3} more` : ''}) fall outside the expected year range.`,
+        title: `${dateOutliers.length} date outlier${dateOutliers.length > 1 ? 's' : ''} found in "${dateColumn}"`,
+        description: `${dateOutliers.length} date${dateOutliers.length > 1 ? 's' : ''} (${affectedValues.slice(0, 3).join(', ')}${affectedValues.length > 3 ? ` +${affectedValues.length - 3} more` : ''}) are in a different year than the majority of dates.`,
         whyItMatters: 'Outlier dates can distort epidemic curves and time-series analysis. A single date from a different year will appear as a separate bar, making the outbreak pattern harder to interpret.',
         suggestedFix: `Correct these dates to ${mostCommonYear}`,
         fixAction: {
@@ -401,6 +400,7 @@ function findDateColumn(columns: string[]): string | null {
   return null
 }
 
+// FIXED: Now detects ANY date that is not in the most common year
 function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
   const parsedDates: { idx: number; date: Date }[] = []
   for (let i = 0; i < rows.length; i++) {
@@ -421,6 +421,7 @@ function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
     const year = parsedDates[i].date.getFullYear()
     yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
   }
+
   let mostCommonYear = 0
   let maxCount = 0
   const entries = Array.from(yearCounts.entries())
@@ -432,11 +433,11 @@ function detectDateOutliers(rows: RawRow[], dateColumn: string): number[] {
     }
   }
 
-  // Find outliers (dates more than 1 year from the most common year)
+  // Return indices of rows with dates NOT in the most common year
   const outliers: number[] = []
   for (let i = 0; i < parsedDates.length; i++) {
-    const yearDiff = Math.abs(parsedDates[i].date.getFullYear() - mostCommonYear)
-    if (yearDiff > 1) {
+    const year = parsedDates[i].date.getFullYear()
+    if (year !== mostCommonYear) {
       outliers.push(parsedDates[i].idx)
     }
   }
@@ -454,11 +455,13 @@ function getMostCommonYear(rows: RawRow[], dateColumn: string): number {
     }
   }
   if (years.length === 0) return new Date().getFullYear()
+
   const yearCounts = new Map<number, number>()
   for (let i = 0; i < years.length; i++) {
     const year = years[i]
     yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
   }
+
   let mostCommonYear = 0
   let maxCount = 0
   const entries = Array.from(yearCounts.entries())
