@@ -41,12 +41,18 @@ export default function DataQualityReport({
 
   const handleApplyFix = (id: string) => {
     onApplyFix(id)
-    setAppliedIssues(prev => new Set([...prev, id]))
+    // FIXED: Use Array.from() instead of spread operator
+    const newSet = new Set(Array.from(appliedIssues))
+    newSet.add(id)
+    setAppliedIssues(newSet)
   }
 
   const handleSkipIssue = (id: string) => {
     onSkipIssue(id)
-    setSkippedIssues(prev => new Set([...prev, id]))
+    // FIXED: Use Array.from() instead of spread operator
+    const newSet = new Set(Array.from(skippedIssues))
+    newSet.add(id)
+    setSkippedIssues(newSet)
   }
 
   const getSeverityColor = (severity: string) => {
@@ -261,11 +267,11 @@ export default function DataQualityReport({
 
                     {isSkipped && (
                       <button
-                        onClick={() => setSkippedIssues(prev => {
-                          const newSet = new Set(prev)
+                        onClick={() => {
+                          const newSet = new Set(Array.from(skippedIssues))
                           newSet.delete(issue.id)
-                          return newSet
-                        })}
+                          setSkippedIssues(newSet)
+                        }}
                         style={{
                           fontSize: '11px',
                           color: '#8b9bc4',
