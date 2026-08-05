@@ -32,6 +32,8 @@ export default function CleanPage() {
   const [allColumns, setAllColumns] = useState<string[]>([])
 
   // Step 1
+  const [researchQuestion, setResearchQuestion] = useState('')
+  const [isQuestionFocused, setIsQuestionFocused] = useState(false)
   const [detectedSource, setDetectedSource] = useState<SourceDetectionResult | null>(null)
   const [selectedSource, setSelectedSource] = useState<DataSource>('generic')
   const [isDragging, setIsDragging] = useState(false)
@@ -143,6 +145,7 @@ export default function CleanPage() {
           source: selectedSource,
           rowCount: rows.length,
           columnProfiles,
+          researchQuestion: researchQuestion.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -283,6 +286,45 @@ export default function CleanPage() {
                       <p style={{ color: '#6b7aa3', fontSize: '13px', margin: 0 }}>.xlsx, .xls, or .csv</p>
                     </div>
                   )}
+                </div>
+
+                {/* NEW: Research Question Input */}
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{
+                    borderRadius: '10px',
+                    transition: 'all 0.15s',
+                    border: `2px solid ${isQuestionFocused ? '#7c5cff' : 'rgba(255,255,255,0.1)'}`,
+                    background: isQuestionFocused ? 'rgba(124,92,255,0.06)' : 'rgba(255,255,255,0.02)',
+                    padding: '12px 16px',
+                  }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#aab4d4', marginBottom: '6px' }}>
+                      Research Question <span style={{ fontWeight: 400, color: '#6b7aa3' }}>(optional)</span>
+                    </label>
+                    <textarea
+                      value={researchQuestion}
+                      onChange={(e) => setResearchQuestion(e.target.value)}
+                      onFocus={() => setIsQuestionFocused(true)}
+                      onBlur={() => setIsQuestionFocused(false)}
+                      placeholder="e.g., What are the demographic and exposure risk factors associated with dengue fever among patients in Region III?"
+                      style={{
+                        width: '100%',
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        color: '#f1f4fc',
+                        fontSize: '13px',
+                        resize: 'vertical',
+                        minHeight: '48px',
+                        maxHeight: '100px',
+                        fontFamily: 'inherit',
+                        padding: 0,
+                      }}
+                      rows={2}
+                    />
+                    <p style={{ fontSize: '11px', color: '#6b7aa3', margin: '4px 0 0' }}>
+                      Adding a research question helps AI suggest cleaning steps specific to your analysis needs.
+                    </p>
+                  </div>
                 </div>
 
                 {detectedSource && (
