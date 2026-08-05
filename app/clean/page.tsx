@@ -128,14 +128,14 @@ export default function CleanPage() {
 
     // Run adequacy check
     const classifications = classifyColumns(allColumns)
-    const keep = new Set(classifications.filter(c => c.classification === 'keep').map(c => c.name))
-    const remove = new Set(classifications.filter(c => c.classification !== 'keep').map(c => c.name))
+    const keepArr = classifications.filter(c => c.classification === 'keep').map(c => c.name)
+    const removeArr = classifications.filter(c => c.classification !== 'keep').map(c => c.name)
 
     const adequacy = parseResearchQuestion(
       researchQuestion,
       allColumns,
-      Array.from(keep),
-      Array.from(remove)
+      keepArr,
+      removeArr
     )
 
     setAdequacyResult(adequacy)
@@ -195,10 +195,13 @@ export default function CleanPage() {
       const cols = fixAction.payload.columns as string[]
       newRows = newRows.map(row => {
         const newRow = { ...row }
-        cols.forEach(c => delete newRow[c])
+        for (let i = 0; i < cols.length; i++) {
+          delete newRow[cols[i]]
+        }
         return newRow
       })
-      setAllColumns(allColumns.filter(c => !cols.includes(c)))
+      const colsSet = new Set(fixAction.payload.columns as string[])
+      setAllColumns(allColumns.filter(c => !colsSet.has(c)))
     } else if (fixAction.type === 'deduplicate') {
       const rowIndices = fixAction.payload.rowIndices as number[]
       newRows = deduplicateRows(newRows, rowIndices)
@@ -213,8 +216,8 @@ export default function CleanPage() {
 
   function handleApplyAllQualityFixes() {
     const pending = qualityIssues.filter(i => i.autoFixable)
-    for (const issue of pending) {
-      handleApplyQualityFix(issue.id)
+    for (let i = 0; i < pending.length; i++) {
+      handleApplyQualityFix(pending[i].id)
     }
   }
 
@@ -236,29 +239,41 @@ export default function CleanPage() {
     const classifications = classifyColumns(allColumns)
     setColumnClassifications(classifications)
 
-    let keep = new Set(classifications.filter(c => c.classification === 'keep').map(c => c.name))
-    let remove = new Set(classifications.filter(c => c.classification !== 'keep').map(c => c.name))
+    let keepArr = classifications.filter(c => c.classification === 'keep').map(c => c.name)
+    let removeArr = classifications.filter(c => c.classification !== 'keep').map(c => c.name)
 
     // PROTECT required columns from being removed
     if (adequacyResult) {
-      for (const req of adequacyResult.requiredColumns) {
-        // Check if any column matching this requirement is in the remove set
-        for (const col of remove) {
+      const requiredCols = adequacyResult.requiredColumns
+      for (let r = 0; r < requiredCols.length; r++) {
+        const req = requiredCols[r]
+        const aliases = req.aliases || [req.name]
+        // Check each column in removeArr
+        const newRemoveArr: string[] = []
+        for (let c = 0; c < removeArr.length; c++) {
+          const col = removeArr[c]
           const colLower = col.toLowerCase()
-          // Check against aliases
-          const aliases = req.aliases || [req.name]
-          for (const alias of aliases) {
-            if (colLower.includes(alias.toLowerCase()) || alias.toLowerCase().includes(colLower)) {
-              // Move from remove to keep
-              remove.delete(col)
-              keep.add(col)
+          let isRequired = false
+          for (let a = 0; a < aliases.length; a++) {
+            const alias = aliases[a].toLowerCase()
+            if (colLower.includes(alias) || alias.includes(colLower)) {
+              isRequired = true
               break
             }
           }
+          if (!isRequired) {
+            newRemoveArr.push(col)
+          } else {
+            // This column is required, keep it
+            keepArr.push(col)
+          }
         }
+        removeArr = newRemoveArr
       }
     }
 
+    const keep = new Set(keepArr)
+    const remove = new Set(removeArr)
     setKeepCols(keep)
     setRemoveCols(remove)
     const bday = classifications.find(c => c.specialAction === 'convert_age')
@@ -269,24 +284,31 @@ export default function CleanPage() {
   // ─── Step 3: De-identify ──────────────────────────────────────────────────────
 
   function moveToKeep(colName: string) {
-    setRemoveCols(prev => { const s = new Set(Array.from(prev)); s.delete(colName); return s })
+    const prevRemove = Array.from(removeCols)
+    const newRemove = new Set(prevRemove.filter(c => c !== colName))
+    setRemoveCols(newRemove)
     setKeepCols(prev => new Set([...Array.from(prev), colName]))
   }
 
   function moveToRemove(colName: string) {
     // Check if this column is required for the research question
     if (adequacyResult) {
-      for (const req of adequacyResult.requiredColumns) {
+      const requiredCols = adequacyResult.requiredColumns
+      for (let r = 0; r < requiredCols.length; r++) {
+        const req = requiredCols[r]
         const aliases = req.aliases || [req.name]
-        for (const alias of aliases) {
-          if (colName.toLowerCase().includes(alias.toLowerCase()) || alias.toLowerCase().includes(colName.toLowerCase())) {
+        for (let a = 0; a < aliases.length; a++) {
+          const alias = aliases[a].toLowerCase()
+          if (colName.toLowerCase().includes(alias) || alias.includes(colName.toLowerCase())) {
             alert(`"${colName}" is required for your research question and cannot be removed.`)
             return
           }
         }
       }
     }
-    setKeepCols(prev => { const s = new Set(Array.from(prev)); s.delete(colName); return s })
+    const prevKeep = Array.from(keepCols)
+    const newKeep = new Set(prevKeep.filter(c => c !== colName))
+    setKeepCols(newKeep)
     setRemoveCols(prev => new Set([...Array.from(prev), colName]))
   }
 
@@ -593,13 +615,22 @@ export default function CleanPage() {
                 <div style={{ padding: '12px', maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {Array.from(removeCols).map(col => {
                     const cls = columnClassifications.find(c => c.name === col)
-                    const isRequired = adequacyResult?.requiredColumns.some(req => {
-                      const aliases = req.aliases || [req.name]
-                      return aliases.some(alias => 
-                        col.toLowerCase().includes(alias.toLowerCase()) || 
-                        alias.toLowerCase().includes(col.toLowerCase())
-                      )
-                    })
+                    let isRequired = false
+                    if (adequacyResult) {
+                      const requiredCols = adequacyResult.requiredColumns
+                      for (let r = 0; r < requiredCols.length; r++) {
+                        const req = requiredCols[r]
+                        const aliases = req.aliases || [req.name]
+                        for (let a = 0; a < aliases.length; a++) {
+                          const alias = aliases[a].toLowerCase()
+                          if (col.toLowerCase().includes(alias) || alias.includes(col.toLowerCase())) {
+                            isRequired = true
+                            break
+                          }
+                        }
+                        if (isRequired) break
+                      }
+                    }
                     return (
                       <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: isRequired ? 'rgba(96,165,250,0.12)' : 'rgba(248,113,113,0.08)', border: `1px solid ${isRequired ? 'rgba(96,165,250,0.3)' : 'rgba(248,113,113,0.2)'}`, borderRadius: '6px', gap: '8px' }}>
                         <div style={{ minWidth: 0 }}>
@@ -643,13 +674,22 @@ export default function CleanPage() {
                 </div>
                 <div style={{ padding: '12px', maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {Array.from(keepCols).map(col => {
-                    const isRequired = adequacyResult?.requiredColumns.some(req => {
-                      const aliases = req.aliases || [req.name]
-                      return aliases.some(alias => 
-                        col.toLowerCase().includes(alias.toLowerCase()) || 
-                        alias.toLowerCase().includes(col.toLowerCase())
-                      )
-                    })
+                    let isRequired = false
+                    if (adequacyResult) {
+                      const requiredCols = adequacyResult.requiredColumns
+                      for (let r = 0; r < requiredCols.length; r++) {
+                        const req = requiredCols[r]
+                        const aliases = req.aliases || [req.name]
+                        for (let a = 0; a < aliases.length; a++) {
+                          const alias = aliases[a].toLowerCase()
+                          if (col.toLowerCase().includes(alias) || alias.includes(col.toLowerCase())) {
+                            isRequired = true
+                            break
+                          }
+                        }
+                        if (isRequired) break
+                      }
+                    }
                     return (
                       <div key={col} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: isRequired ? 'rgba(96,165,250,0.08)' : 'rgba(74,222,128,0.04)', border: `1px solid ${isRequired ? 'rgba(96,165,250,0.25)' : 'rgba(74,222,128,0.15)'}`, borderRadius: '6px', gap: '8px' }}>
                         <p style={{ margin: 0, fontSize: '12px', color: isRequired ? '#60a5fa' : '#86efac', fontWeight: isRequired ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
