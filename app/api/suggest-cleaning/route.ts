@@ -22,7 +22,7 @@ interface SuggestCleaningRequest {
   source: DataSource
   rowCount: number
   columnProfiles: ColumnProfile[]
-  researchQuestion?: string  // NEW: Optional research question for contextual cleaning
+  researchQuestion?: string
 }
 
 const CLIENT = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let dynamicPrompt = `SOURCE: ${source}
 ROW COUNT: ${rowCount}`
 
-    // NEW: Include research question if provided
+    // Include research question if provided
     if (researchQuestion && researchQuestion.trim()) {
       dynamicPrompt += `
 
@@ -103,12 +103,11 @@ ${columnProfiles.map(col =>
 Propose cleaning steps as a JSON array. Raw JSON only — no markdown.`
 
     const response = await CLIENT.messages.create({
-      model: 'claude-haiku-4-5-20251001', // Haiku — column metadata is tiny, Haiku handles this well
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       messages: [{
         role: 'user',
         content: [
-          // Cache the static instruction block — identical across all requests
           { type: 'text', text: SYSTEM_INSTRUCTION, cache_control: { type: 'ephemeral' } } as any,
           { type: 'text', text: '\n\n' + dynamicPrompt },
         ],
