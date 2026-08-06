@@ -394,14 +394,23 @@ export default function CleanPage() {
     XLSX.writeFile(wb, `clean_${fileName || 'linelist'}.xlsx`)
   }
 
+  // ─── FIXED: Store as base64 instead of blob URL ─────────────────────────────
+
   function analyzeInApp() {
     const ws = XLSX.utils.json_to_sheet(cleanedRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Line List')
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url = URL.createObjectURL(blob)
-    sessionStorage.setItem('cleanedFileBlob', url)
+
+    // Convert to base64 string for sessionStorage
+    const uint8Array = new Uint8Array(wbout)
+    let binaryString = ''
+    for (let i = 0; i < uint8Array.length; i++) {
+      binaryString += String.fromCharCode(uint8Array[i])
+    }
+    const base64 = btoa(binaryString)
+
+    sessionStorage.setItem('cleanedFileData', base64)
     sessionStorage.setItem('cleanedFileName', `clean_${fileName || 'linelist'}.xlsx`)
     window.location.href = '/?from_cleaner=1'
   }
