@@ -88,18 +88,27 @@ function HomeContent() {
     // Pick up cleaned file from Line List Builder if redirected
     const fromCleaner = new URLSearchParams(window.location.search).get('from_cleaner')
     if (fromCleaner === '1') {
-      const blobUrl = sessionStorage.getItem('cleanedFileBlob')
+      const base64Data = sessionStorage.getItem('cleanedFileData')
       const cleanedName = sessionStorage.getItem('cleanedFileName') || 'clean_linelist.xlsx'
-      sessionStorage.removeItem('cleanedFileBlob')
+      sessionStorage.removeItem('cleanedFileData')
       sessionStorage.removeItem('cleanedFileName')
-      if (blobUrl) {
-        fetch(blobUrl)
-          .then(r => r.blob())
-          .then(blob => {
-            const file = new File([blob], cleanedName, { type: blob.type })
-            handleFileUpload(file, false)
-          })
-          .catch(() => {})
+      
+      if (base64Data) {
+        try {
+          // Convert base64 back to binary
+          const binaryString = atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { 
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+          });
+          const file = new File([blob], cleanedName, { type: blob.type });
+          handleFileUpload(file, false);
+        } catch (err) {
+          console.error('Failed to restore cleaned file:', err);
+        }
       }
     }
   }, [])
